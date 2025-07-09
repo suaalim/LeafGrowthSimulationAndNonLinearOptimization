@@ -150,7 +150,7 @@ int main() {
 	int index = 0;
 	root->labelBranches(root, pairs, index);
 	// catmullrom gives smooth curve, linear gives sharp curve
-	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 5, pairs);
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 25, pairs);
 	//std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourLinearGrouped(contour, 5, pairs);
 	std::vector<ContourBinding> bindings = root->bindInterpolatedContourToBranches(groupedContour);
 	// DEBUGGING PURPOSES
@@ -195,16 +195,16 @@ int main() {
 		int currentCKeyState = glfwGetKey(window, GLFW_KEY_C);
 		if (currentCKeyState == GLFW_PRESS && !cKeyPressedLastFrame)
 		{
-			//std::random_device rd;
-			//std::mt19937 gen(rd()); // random number
-			//std::uniform_real_distribution<float> dist(0.0f, 2.0f);
-			//ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
-			ContourBinding* c = &bindings[bindings.size()/2 - 3];
+			std::random_device rd;
+			std::mt19937 gen(rd()); // random number
+			std::uniform_real_distribution<float> dist(0.0f, 2.0f);    // should change to distance of the main axis
+			ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
+			//ContourBinding* c = &bindings[int(bindings.size()/2 * 0.3)];
 			// we don't want to add a new branch relative to the contour point that is binded leaf node 
 			// allows us to preserve the tip of the main axis for growth
 			if (!c->childNode->children.empty()) {
 				root->divideBranchMinDistance(root, c);
-				std::vector<ContourBinding*> toRebind = root->contourPointsToRebind(bindings);
+				std::vector<ContourBinding*> toRebind = root->contourPointsToRebind(bindings, root);
 				pairs.clear();
 				root->labelBranches(root, pairs, index);
 				newPairs.clear();
@@ -222,7 +222,7 @@ int main() {
 				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 				//root->printStructure(root);
 				root->rebindContourToNewBranch(root, c, bindings, toRebind);
-				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+				/*bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);*/
 				root->divided = false;
 			}
 		}

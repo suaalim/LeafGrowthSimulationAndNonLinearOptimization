@@ -69,7 +69,7 @@ public:
 	void rebindContourToNewBranch(SceneNode* node, ContourBinding* contour, std::vector<ContourBinding>& bindings, std::vector<ContourBinding*>& toRebind);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
-	std::vector<ContourBinding*> contourPointsToRebind(std::vector<ContourBinding>& bindings);
+	std::vector<ContourBinding*> contourPointsToRebind(std::vector<ContourBinding>& bindings, SceneNode* root);
 	void printStructure(SceneNode* node);
 	void printMatrix(SceneNode* node);
 	bool divided;
