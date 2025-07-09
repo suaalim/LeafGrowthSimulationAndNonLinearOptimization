@@ -11,6 +11,10 @@
 #include "SceneNode.h"
 #include "ShaderLoader.h"
 #include <tuple>
+#include <random>
+
+// Outside your loop (global or static variable)
+static bool cKeyPressedLastFrame = false;
 
 // DEBUGGING PURPOSES
 void printVectorOfPairs(const std::vector<std::pair<glm::vec3, glm::vec3>>& vec) {
@@ -129,7 +133,7 @@ int main() {
 	CPU_Geometry branchGeometry;
 	std::vector<CPU_Geometry> branchUpdates;
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices9.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
 	
@@ -142,13 +146,16 @@ int main() {
 	contour = root->midPoints(contour);
 	// branch-contour mapping
 	std::vector<std::tuple<SceneNode*, SceneNode*, int>> pairs;
+	std::vector<std::pair<SceneNode*, SceneNode*>> newPairs;
 	int index = 0;
 	root->labelBranches(root, pairs, index);
-	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 8, pairs);
-	std::vector<ContourBinding> bindings = root->bindInterpolatedContourToBranches(groupedContour);  
+	// catmullrom gives smooth curve, linear gives sharp curve
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 5, pairs);
+	//std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourLinearGrouped(contour, 5, pairs);
+	std::vector<ContourBinding> bindings = root->bindInterpolatedContourToBranches(groupedContour);
 	// DEBUGGING PURPOSES
 	CPU_Geometry mappingLines;
-
+	
 	// camera setup
 	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 5), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 800.f / 800.f, 0.1f, 100.f);
@@ -160,6 +167,7 @@ int main() {
 	while (!glfwWindowShouldClose(window)) {
 		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 		// animation
 		float currentTime = glfwGetTime();
 		float deltaTime = (currentTime - lastTime) / 10;
@@ -169,7 +177,57 @@ int main() {
 		{
 			root->animate(deltaTime);
 		}
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		{
+			if (root->divideBranch(root, .5f)) {
+				pairs.clear();
+				root->labelBranches(root, pairs, index);
+				newPairs.clear();
+				index = 0;
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+				root->rebindContour(root, newPairs, index, bindings);
+				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+				root->divided = false;
+			}
+		}
 
+		// only execute once per frame
+		int currentCKeyState = glfwGetKey(window, GLFW_KEY_C);
+		if (currentCKeyState == GLFW_PRESS && !cKeyPressedLastFrame)
+		{
+			//std::random_device rd;
+			//std::mt19937 gen(rd()); // random number
+			//std::uniform_real_distribution<float> dist(0.0f, 2.0f);
+			//ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
+			ContourBinding* c = &bindings[bindings.size()/2 - 3];
+			// we don't want to add a new branch relative to the contour point that is binded leaf node 
+			// allows us to preserve the tip of the main axis for growth
+			if (!c->childNode->children.empty()) {
+				root->divideBranchMinDistance(root, c);
+				std::vector<ContourBinding*> toRebind = root->contourPointsToRebind(bindings);
+				pairs.clear();
+				root->labelBranches(root, pairs, index);
+				newPairs.clear();
+				index = 0;
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+				root->rebindContour(root, newPairs, index, bindings);
+
+				// now add new branch
+				root->addNewBranch(root, c);
+				pairs.clear();
+				root->labelBranches(root, pairs, index);
+				newPairs.clear();
+				index = 0;
+				// need to update branch
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+				//root->printStructure(root);
+				root->rebindContourToNewBranch(root, c, bindings, toRebind);
+				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+				root->divided = false;
+			}
+		}
+		// update key state for next frame
+		cKeyPressedLastFrame = (currentCKeyState == GLFW_PRESS);
 		//root->animate(deltaTime);
 
 		// need to clear geometry before calling update to draw the new positions
@@ -186,6 +244,19 @@ int main() {
 
 		// update branch position
 		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+		/*root->printMatrix(root);
+		std::cout << "----------------------" << std::endl;*/
+		//// divide branch
+		//if (root->divideBranch(root, 2.0f)) {
+		//	pairs.clear();
+		//	root->labelBranches(root, pairs, index);
+		//	newPairs.clear();
+		//	index = 0;
+		//	// update branch position
+		//	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+		//	root->rebindContour(root, newPairs, index, bindings);
+		//	root->divided = false;
+		//}
 		std::vector<std::pair<SceneNode*, SceneNode*>> p;
 		for (const auto& tup : pairs) {
 			p.emplace_back(std::get<0>(tup), std::get<1>(tup));
@@ -193,7 +264,7 @@ int main() {
 		root->interpolateBranchTransforms(p, branchUpdates);
 
 		// add contour point if necessary and bind
-		bindings = root->addContourPoints(bindings);
+		bindings = root->addContourPoints(bindings, pairs);
 		root->animationPerFrame(bindings);
 
 		mappingLines.verts.clear();
@@ -203,48 +274,47 @@ int main() {
 		int i = 0;
 		for (const auto& binding : bindings) {
 			int startIdx = mappingLines.verts.size();
-			mappingLines.verts.push_back(binding.contourPoint);
-			mappingLines.verts.push_back(binding.closestPoint);
-			mappingLines.cols.push_back(glm::vec3(0.5f, 0.f, 0.5f));
-			mappingLines.cols.push_back(glm::vec3(0.5f, 0.f, 0.5f));
+			mappingLines.verts.push_back(binding.contourPoint - glm::vec3(0, 0, 0.02));
+			mappingLines.verts.push_back(binding.closestPoint - glm::vec3(0, 0, 0.02));
+			mappingLines.cols.push_back(glm::vec3(0.8f, 0.6f, 0.8f));
+			mappingLines.cols.push_back(glm::vec3(0.8f, 0.6f, 0.8f));
 			mappingLines.indices.push_back(startIdx);     // from contour
 			mappingLines.indices.push_back(startIdx + 1); // to closest branch point
 			++i;
 		}
 
-		// interpolate contour points using catmullrom here
+		// interpolate contour points
 		for (int i = 0; i < bindings.size(); i++) {
 			contourGeometry.verts.push_back(bindings[i].contourPoint);
 		}
+
 		for (int i = 0; i < contourGeometry.verts.size(); i++) {
 			contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 		}
 
 		glPointSize(5);
-		glLineWidth(3.0f); // Set line width to 2 pixels
+		glLineWidth(2.0f); // Set line width to 2 pixels
 		// Branch
 		updateBuffers(branchGeometry.verts, branchGeometry.cols, branchGeometry.indices);
 		glBindVertexArray(vao);
-		//glDrawArrays(GL_POINTS, 0, branchGeometry.verts.size());
-		//glDrawElements(GL_LINES, branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
+		glDrawArrays(GL_POINTS, 0, branchGeometry.verts.size());
+		glDrawElements(GL_LINES, branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
 
-		// Interpolated branch
-		for (int i = 0; i < branchUpdates.size(); i++) {
-			updateBuffers(branchUpdates[i].verts, branchUpdates[i].cols, branchUpdates[i].indices);
-			//glDrawArrays(GL_POINTS, 0, branchUpdates[i].verts.size());
-			glDrawArrays(GL_LINE_STRIP, 0, branchUpdates[i].verts.size());
-			//glDrawElements(GL_LINES, branchUpdates.indices.size(), GL_UNSIGNED_INT, 0);
-		}
+		//// Interpolated branch
+		//for (int i = 0; i < branchUpdates.size(); i++) {
+		//	updateBuffers(branchUpdates[i].verts, branchUpdates[i].cols, branchUpdates[i].indices);
+		//	glDrawArrays(GL_LINE_STRIP, 0, branchUpdates[i].verts.size());
+		//}
 
 		// Contour
 		updateBuffers(contourGeometry.verts, contourGeometry.cols, {});
 		glDrawArrays(GL_POINTS, 0, contourGeometry.verts.size());
 		glDrawArrays(GL_LINE_STRIP, 0, contourGeometry.verts.size());
 
-		//// Mapping (DEBUGGING PURPOSES)
-		//updateBuffers(mappingLines.verts, mappingLines.cols, mappingLines.indices);
-		//glDrawArrays(GL_POINTS, 0, mappingLines.verts.size());
-		//draw(GL_LINES, mappingLines.verts.size(), mappingLines.indices.size());
+		// Mapping (DEBUGGING PURPOSES)
+		updateBuffers(mappingLines.verts, mappingLines.cols, mappingLines.indices);
+		glDrawArrays(GL_POINTS, 0, mappingLines.verts.size());
+		draw(GL_LINES, mappingLines.verts.size(), mappingLines.indices.size());
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
