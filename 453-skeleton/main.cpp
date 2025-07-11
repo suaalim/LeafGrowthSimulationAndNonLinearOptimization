@@ -16,6 +16,13 @@
 // Outside your loop (global or static variable)
 static bool cKeyPressedLastFrame = false;
 
+void accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
+	branchingStructure.push_back(root);
+	for (SceneNode* child : root->children) {
+		accumulateBranchingStructure(child, branchingStructure);
+	}
+}
+
 // DEBUGGING PURPOSES
 void printVectorOfPairs(const std::vector<std::pair<glm::vec3, glm::vec3>>& vec) {
 	for (const auto& pair : vec) {
@@ -132,6 +139,7 @@ int main() {
 
 	CPU_Geometry branchGeometry;
 	std::vector<CPU_Geometry> branchUpdates;
+	std::vector<SceneNode*> branchingStructure;
 
 	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
@@ -150,14 +158,14 @@ int main() {
 	int index = 0;
 	root->labelBranches(root, pairs, index);
 	// catmullrom gives smooth curve, linear gives sharp curve
-	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 25, pairs);
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 5, pairs);
 	//std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourLinearGrouped(contour, 5, pairs);
 	std::vector<ContourBinding> bindings = root->bindInterpolatedContourToBranches(groupedContour);
 	// DEBUGGING PURPOSES
 	CPU_Geometry mappingLines;
 	
 	// camera setup
-	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 5), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
+	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 3), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 800.f / 800.f, 0.1f, 100.f);
 	glm::mat4 viewProj = proj * view;
 	glUseProgram(shader);
@@ -187,6 +195,7 @@ int main() {
 				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 				root->rebindContour(root, newPairs, index, bindings);
 				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+				accumulateBranchingStructure(root, branchingStructure);
 				root->divided = false;
 			}
 		}
@@ -197,14 +206,15 @@ int main() {
 		{
 			std::random_device rd;
 			std::mt19937 gen(rd()); // random number
-			std::uniform_real_distribution<float> dist(0.0f, 2.0f);    // should change to distance of the main axis
+			std::uniform_real_distribution<float> dist(0.f, 2.0f);    // should change to distance of the main axis
 			ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
 			//ContourBinding* c = &bindings[int(bindings.size()/2 * 0.3)];
 			// we don't want to add a new branch relative to the contour point that is binded leaf node 
 			// allows us to preserve the tip of the main axis for growth
 			if (!c->childNode->children.empty()) {
 				root->divideBranchMinDistance(root, c);
-				std::vector<ContourBinding*> toRebind = root->contourPointsToRebind(bindings, root);
+				//std::vector<ContourBinding*> toRebind = root->contourPointsToRebind(bindings, root);
+				std::vector<size_t> toRebind = root->contourBindingIndicesToRebind(bindings, root);
 				pairs.clear();
 				root->labelBranches(root, pairs, index);
 				newPairs.clear();
@@ -221,8 +231,11 @@ int main() {
 				// need to update branch
 				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 				//root->printStructure(root);
-				root->rebindContourToNewBranch(root, c, bindings, toRebind);
-				/*bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);*/
+				//root->rebindContourToNewBranch(root, c, 2, toRebind);
+				std::vector<ContourBinding*> bindingsAddress;
+				for (ContourBinding b : bindings) bindingsAddress.push_back(&b);
+				root->rebindContourToNewBranchIndexBased(root, c, 2, toRebind, bindings);
+				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 				root->divided = false;
 			}
 		}
@@ -263,8 +276,9 @@ int main() {
 		}
 		root->interpolateBranchTransforms(p, branchUpdates);
 
-		// add contour point if necessary and bind
-		bindings = root->addContourPoints(bindings, pairs);
+		// add contour point and bind
+		accumulateBranchingStructure(root, branchingStructure);
+		bindings = root->addContourPoints(bindings, branchingStructure);
 		root->animationPerFrame(bindings);
 
 		mappingLines.verts.clear();
