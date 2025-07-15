@@ -111,7 +111,7 @@ private:
 	float animationAngle = 0.0f;
 	float animationScaling = 1.0f;
 	float animationTime = 0.0f;
-	float animationDuration = 1.2f; // how long the animation lasts
+	float animationDuration = 1.f; // how long the animation lasts
 	float S = 1.f;
 	float rotationAngle = 0.f;
 };
