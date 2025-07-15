@@ -13,7 +13,6 @@
 #include <tuple>
 #include <random>
 
-// Outside your loop (global or static variable)
 static bool cKeyPressedLastFrame = false;
 
 void accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
@@ -33,7 +32,7 @@ void resetBool(SceneNode* root) {
 }
 
 
-// DEBUGGING PURPOSES
+// DEBUGGING 
 void printVectorOfPairs(const std::vector<std::pair<glm::vec3, glm::vec3>>& vec) {
 	for (const auto& pair : vec) {
 		std::cout << "Pair: " << std::endl;
