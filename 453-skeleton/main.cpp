@@ -23,6 +23,16 @@ void accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& bran
 	}
 }
 
+void resetBool(SceneNode* root) {
+	root->addBranch = false;
+	root->midBranch = false;
+	root->trackOriginalBranch = false;
+	for (SceneNode* child : root->children) {
+		resetBool(child);
+	}
+}
+
+
 // DEBUGGING PURPOSES
 void printVectorOfPairs(const std::vector<std::pair<glm::vec3, glm::vec3>>& vec) {
 	for (const auto& pair : vec) {
@@ -172,6 +182,7 @@ int main() {
 	glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 	float lastTime = glfwGetTime();
 
+	int branchCounter = 0;
 	while (!glfwWindowShouldClose(window)) {
 		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -193,7 +204,7 @@ int main() {
 				newPairs.clear();
 				index = 0;
 				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-				root->rebindContour(root, newPairs, index, bindings);
+				root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
 				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 				accumulateBranchingStructure(root, branchingStructure);
 				root->divided = false;
@@ -204,38 +215,58 @@ int main() {
 		int currentCKeyState = glfwGetKey(window, GLFW_KEY_C);
 		if (currentCKeyState == GLFW_PRESS && !cKeyPressedLastFrame)
 		{
+			float vs[] = {0.994907, 1.237082};
 			std::random_device rd;
 			std::mt19937 gen(rd()); // random number
-			std::uniform_real_distribution<float> dist(0.f, 2.0f);    // should change to distance of the main axis
+			std::uniform_real_distribution<float> dist(0.3f, 2.0f);    // should change to distance of the main axis, don't want to add new branch from the root
 			ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
-			//ContourBinding* c = &bindings[int(bindings.size()/2 * 0.3)];
-			// we don't want to add a new branch relative to the contour point that is binded leaf node 
-			// allows us to preserve the tip of the main axis for growth
-			if (!c->childNode->children.empty()) {
-				root->divideBranchMinDistance(root, c);
-				//std::vector<ContourBinding*> toRebind = root->contourPointsToRebind(bindings, root);
-				std::vector<size_t> toRebind = root->contourBindingIndicesToRebind(bindings, root);
-				pairs.clear();
-				root->labelBranches(root, pairs, index);
-				newPairs.clear();
-				index = 0;
-				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-				root->rebindContour(root, newPairs, index, bindings);
 
-				// now add new branch
-				root->addNewBranch(root, c);
-				pairs.clear();
-				root->labelBranches(root, pairs, index);
-				newPairs.clear();
-				index = 0;
-				// need to update branch
-				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-				//root->printStructure(root);
-				//root->rebindContourToNewBranch(root, c, 2, toRebind);
-				std::vector<ContourBinding*> bindingsAddress;
-				for (ContourBinding b : bindings) bindingsAddress.push_back(&b);
-				root->rebindContourToNewBranchIndexBased(root, c, 2, toRebind, bindings);
-				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+			//ContourBinding* c = root->findContourPointToAddBranch(vs[branchCounter], root, bindings);
+			//branchCounter = (branchCounter + 1) % 2;
+			
+			//ContourBinding* c = &bindings[35];
+			//ContourBinding* c = &bindings[int(bindings.size()/2 * 1.3)];
+			//ContourBinding* c = &bindings[11];
+			//ContourBinding* c = &bindings[5];
+			//ContourBinding* c = &bindings[3];
+			//ContourBinding* c = &bindings[14];
+			
+			// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch)
+			if (!(c->childNode->children.empty() && c->t == 1)) {
+				// storing copy of original branching structure
+				std::unordered_map<SceneNode*, SceneNode*> nodeMap;
+				SceneNode* originalRoot = SceneNode::cloneSceneNode(root, nullptr, nodeMap);
+				std::vector<ContourBinding> originalBindings = bindings;
+
+				root->divideBranchMinDistance(root, c);
+				std::vector<size_t> toRebind = root->contourBindingIndicesToRebind(bindings, root);
+
+				if (!toRebind.empty()) {
+					pairs.clear();
+					root->labelBranches(root, pairs, index);
+					newPairs.clear();
+					index = 0;
+					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+					root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
+
+					// now add new branch
+					SceneNode* newNode = root->addNewBranch(root, c);
+					pairs.clear();
+					root->labelBranches(root, pairs, index);
+					newPairs.clear();
+					index = 0;
+					// need to update branch
+					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+					//root->printStructure(root);;
+					root->rebindContourToNewBranchIndexBased(newNode, c, 2, toRebind, bindings);
+					resetBool(root);
+				}
+				else {
+					printf("no branch added");
+					root = originalRoot;
+					bindings = root->rebindContour(originalBindings, nodeMap);
+					resetBool(root);
+				}
 				root->divided = false;
 			}
 		}

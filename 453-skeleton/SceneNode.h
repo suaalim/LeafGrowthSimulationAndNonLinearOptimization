@@ -26,12 +26,15 @@ struct ContourBinding {
 	float t;
 	glm::vec3 closestPoint;
 	glm::mat4 previousAnimateInverse;
+	bool newBranchBinding = false;
 };
 
 // SceneNode for Scene Graph
 class SceneNode {
 public:
 	SceneNode();
+	static SceneNode* cloneSceneNode(SceneNode* node, SceneNode* parent, std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
+	std::vector<ContourBinding> rebindContour(const std::vector<ContourBinding>& bindings, const std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
 	void addChild(SceneNode* child);
 	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> transformations);
 	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> extractEdgeTransforms(const std::string& filename);
@@ -47,30 +50,26 @@ public:
 	static void getLeafNodes(SceneNode* node, std::vector<SceneNode*>& leaves);
 	static std::vector<glm::vec3> generateInitialContourControlPoints(SceneNode* root);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourCatmullRomGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourLinearGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<glm::vec3> midPoints(std::vector<glm::vec3>& contourPoints);
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
-	std::tuple<SceneNode*, SceneNode*> findChildrenOfFirstCommonAncestorFromRoot(
-		SceneNode* root,
-		const ContourBinding& a,
-		const ContourBinding& b
-	);
+	std::tuple<SceneNode*, SceneNode*> findChildrenOfFirstCommonAncestorFromRoot(SceneNode* root, const ContourBinding& a, const ContourBinding& b);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
 	void animationPerFrame(std::vector<ContourBinding>& bindings);
 	void handleMouseClick(double xpos, double ypos, int screenWidth, int screenHeight,
 		glm::mat4 view, glm::mat4 projection, std::vector<glm::vec3> contourPoints, CPU_Geometry geom);
 
-	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourLinearGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	bool divideBranch(SceneNode* node, float threshold);
-	void rebindContour(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
+	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
-	void addNewBranch(SceneNode* node, ContourBinding* contour);
+	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour);
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
+	std::vector<ContourBinding*> contourPointsToRebind(std::vector<ContourBinding>& bindings, SceneNode* root);
 	void rebindContourToNewBranch(SceneNode* node, ContourBinding* contour, int division, std::vector<ContourBinding*>& toRebind);
 	void rebindContourToNewBranchIndexBased(SceneNode* node, ContourBinding* contour, int division, std::vector<size_t>& toRebind, std::vector<ContourBinding>& bindings);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
-	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
-	std::vector<ContourBinding*> contourPointsToRebind(std::vector<ContourBinding>& bindings, SceneNode* root);
 	std::vector<size_t> contourBindingIndicesToRebind(const std::vector<ContourBinding>& bindings, SceneNode* root);
+	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
 	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings, std::vector<SceneNode*>& branchingStructure);
 	void printStructure(SceneNode* node);
 	void printMatrix(SceneNode* node);
@@ -116,3 +115,4 @@ private:
 	float S = 1.f;
 	float rotationAngle = 0.f;
 };
+
