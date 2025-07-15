@@ -167,14 +167,14 @@ int main() {
 	int index = 0;
 	root->labelBranches(root, pairs, index);
 	// catmullrom gives smooth curve, linear gives sharp curve
-	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 5, pairs);
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 25, pairs);
 	//std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourLinearGrouped(contour, 5, pairs);
 	std::vector<ContourBinding> bindings = root->bindInterpolatedContourToBranches(groupedContour);
 	// DEBUGGING PURPOSES
 	CPU_Geometry mappingLines;
 	
 	// camera setup
-	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 3), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
+	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 5), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 800.f / 800.f, 0.1f, 100.f);
 	glm::mat4 viewProj = proj * view;
 	glUseProgram(shader);
@@ -218,10 +218,10 @@ int main() {
 			std::random_device rd;
 			std::mt19937 gen(rd()); // random number
 			std::uniform_real_distribution<float> dist(0.3f, 2.0f);    // should change to distance of the main axis, don't want to add new branch from the root
-			ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
+			//ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
 
-			//ContourBinding* c = root->findContourPointToAddBranch(vs[branchCounter], root, bindings);
-			//branchCounter = (branchCounter + 1) % 2;
+			ContourBinding* c = root->findContourPointToAddBranch(vs[branchCounter], root, bindings);
+			branchCounter = (branchCounter + 1) % 2;
 			
 			//ContourBinding* c = &bindings[35];
 			//ContourBinding* c = &bindings[int(bindings.size()/2 * 1.3)];
