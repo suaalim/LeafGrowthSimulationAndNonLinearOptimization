@@ -27,6 +27,8 @@ struct ContourBinding {
 	glm::vec3 closestPoint;
 	glm::mat4 previousAnimateInverse;
 	bool newBranchBinding = false;
+
+	float blending;
 };
 
 // SceneNode for Scene Graph
@@ -36,15 +38,14 @@ public:
 	static SceneNode* cloneSceneNode(SceneNode* node, SceneNode* parent, std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
 	std::vector<ContourBinding> rebindContour(const std::vector<ContourBinding>& bindings, const std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
 	void addChild(SceneNode* child);
-	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> transformations);
-	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> extractEdgeTransforms(const std::string& filename);
+	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>> transformations);
+	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>> extractEdgeTransforms(const std::string& filename);
 	static std::vector<std::vector<int>> buildChildrenList(
-		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>>& edges
+		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>>& edges
 	);
-	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry);
+	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry);
 	void animate(float deltaTime);
 	void deleteSceneGraph(SceneNode* node);
-	static glm::vec3 intersectionPoint(glm::vec3 P, glm::vec3 Q, glm::vec3 R);
 	void getBranches(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 	void labelBranches(SceneNode* node, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments, int& i);
 	static void getLeafNodes(SceneNode* node, std::vector<SceneNode*>& leaves);
@@ -78,6 +79,7 @@ public:
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V
 	glm::mat4 globalTransformation = glm::mat4(1.0f);
+	glm::mat4 marginTransformation = glm::mat4(1.0f);
 	// global to local transformation for rest pose 
 	glm::mat4 restPoseInverse;
 	// rest pose
@@ -105,14 +107,18 @@ private:
 	glm::mat4 animateTranslation = glm::mat4(1.0f);
 	glm::quat animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 	glm::mat4 animateScaling = glm::mat4(1.0f);
+	// expansion (horizontal scaling)
+	glm::mat4 expansion = glm::mat4(1.f);
 	// animation variables
 	float deltatime = 0.0f;
 	float animationDirection = 1.0f; // control how left and right branches move differently (+angle, -angle)
 	float animationAngle = 0.0f;
 	float animationScaling = 1.0f;
 	float animationTime = 0.0f;
-	float animationDuration = 1.f; // how long the animation lasts
+	float animationDuration = 1.5f; // how long the animation lasts
 	float S = 1.f;
 	float rotationAngle = 0.f;
+	float expansionAmount = 1.0f;
+	float expansionFactor = 1.f;
 };
 

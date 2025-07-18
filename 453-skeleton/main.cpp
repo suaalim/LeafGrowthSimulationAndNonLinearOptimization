@@ -13,7 +13,7 @@
 #include <tuple>
 #include <random>
 
-static bool cKeyPressedLastFrame = false;
+static bool aKeyPressedLastFrame = false;
 
 void accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
 	branchingStructure.push_back(root);
@@ -169,11 +169,11 @@ int main() {
 	std::vector<CPU_Geometry> branchUpdates;
 	std::vector<SceneNode*> branchingStructure;
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
 	
-	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 
 	// contour initialization
 	CPU_Geometry contourGeometry;
@@ -193,15 +193,18 @@ int main() {
 	CPU_Geometry mappingLines;
 	
 	// camera setup
-	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 6), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
+	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 8), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 800.f / 800.f, 0.1f, 100.f);
 	glm::mat4 viewProj = proj * view;
 	glUseProgram(shader);
 	glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 	float lastTime = glfwGetTime();
 
+
+	bool cPressed = false;
 	int branchCounter = 0;
 	while (!glfwWindowShouldClose(window)) {
+		bool g_pressed = false;
 		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -209,35 +212,41 @@ int main() {
 		float currentTime = glfwGetTime();
 		float deltaTime = (currentTime - lastTime) / 10;
 		lastTime = currentTime;
-		int state = glfwGetKey(window, GLFW_KEY_E);
+		int state = glfwGetKey(window, GLFW_KEY_G);
 		if (state == GLFW_PRESS)
 		{
+			g_pressed = true;
 			root->animate(deltaTime);
 		}
-		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !cPressed) 
 		{
-			if (root->divideBranch(root, .5f)) {
+			cPressed = true;
+			if (root->divideBranch(root, .1f)) {
 				pairs.clear();
 				root->labelBranches(root, pairs, index);
 				newPairs.clear();
 				index = 0;
-				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 				root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
 				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 				accumulateBranchingStructure(root, branchingStructure);
 				root->divided = false;
 			}
 		}
+		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE) {
+			cPressed = false;
+		}
+
 
 		// only execute once per frame
-		int currentCKeyState = glfwGetKey(window, GLFW_KEY_C);
-		if (currentCKeyState == GLFW_PRESS && !cKeyPressedLastFrame)
+		int currentCKeyState = glfwGetKey(window, GLFW_KEY_A);
+		if (currentCKeyState == GLFW_PRESS && !aKeyPressedLastFrame)
 		{
 			float vs[] = {0.994907, 1.237082};
 			std::random_device rd;
 			std::mt19937 gen(rd()); // random number
 			float mainAxisLength = computeMainAxisLength(root);
-			std::uniform_real_distribution<float> dist(0.3f, computeMainAxisLength(root));    // don't want to add new branch too close to the tip or root
+			std::uniform_real_distribution<float> dist(0.3f, computeMainAxisLength(root));    
 			//ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
 
 			ContourBinding* c = root->findContourPointToAddBranch(vs[branchCounter], root, bindings);
@@ -251,7 +260,7 @@ int main() {
 			//ContourBinding* c = &bindings[14];
 			
 			// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch)
-			if (!(c->childNode->children.empty() && c->t == 1)) {
+			if (!(c->childNode->children.empty() && (c->t == 1 || c->blending == 1))) {
 				// storing copy of original branching structure
 				std::unordered_map<SceneNode*, SceneNode*> nodeMap;
 				SceneNode* originalRoot = SceneNode::cloneSceneNode(root, nullptr, nodeMap);
@@ -265,7 +274,7 @@ int main() {
 					root->labelBranches(root, pairs, index);
 					newPairs.clear();
 					index = 0;
-					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 					root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
 
 					// now add new branch
@@ -275,7 +284,7 @@ int main() {
 					newPairs.clear();
 					index = 0;
 					// need to update branch
-					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 					//root->printStructure(root);;
 					root->rebindContourToNewBranchIndexBased(newNode, c, 2, toRebind, bindings);
 					resetBool(root);
@@ -290,7 +299,7 @@ int main() {
 			}
 		}
 		// update key state for next frame
-		cKeyPressedLastFrame = (currentCKeyState == GLFW_PRESS);
+		aKeyPressedLastFrame = (currentCKeyState == GLFW_PRESS);
 		//root->animate(deltaTime);
 
 		// need to clear geometry before calling update to draw the new positions
@@ -306,7 +315,7 @@ int main() {
 		}
 
 		// update branch position
-		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 		/*root->printMatrix(root);
 		std::cout << "----------------------" << std::endl;*/
 		//// divide branch
@@ -329,7 +338,7 @@ int main() {
 		// add contour point and bind
 		accumulateBranchingStructure(root, branchingStructure);
 		bindings = root->addContourPoints(bindings, branchingStructure);
-		root->animationPerFrame(bindings);
+		if (g_pressed) root->animationPerFrame(bindings);
 
 		mappingLines.verts.clear();
 		mappingLines.indices.clear();
