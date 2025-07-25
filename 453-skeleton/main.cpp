@@ -12,6 +12,52 @@
 #include "ShaderLoader.h"
 #include <tuple>
 #include <random>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
+#include <filesystem> // C++17 or later
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image_write.h"
+
+void saveScreenshot(int width, int height) {
+	auto folderPath = "screenshots";
+	// Create screenshots directory if it doesn't exist
+	if (!std::filesystem::exists(folderPath)) {
+		std::filesystem::create_directory(folderPath);
+	}
+
+	// Generate timestamped filename
+	auto now = std::time(nullptr);
+	auto tm = *std::localtime(&now);
+	std::ostringstream oss;
+	oss << folderPath;
+	oss << "/screenshot_";
+	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+	oss << ".png";
+	std::string filename = oss.str();
+
+	// Allocate buffer for pixel data (3 bytes per pixel: RGB)
+	GLsizei nrChannels = 3;
+	GLsizei stride = nrChannels * width;
+	stride += (stride % 4) ? (4 - stride % 4) : 0; // Align to 4 bytes
+	std::vector<unsigned char> buffer(stride * height);
+
+	// Read pixels from framebuffer (reads from BACK buffer)
+	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+
+	// Flip image vertically (OpenGL has origin at bottom-left)
+	std::vector<unsigned char> flipped(stride * height);
+	for (int row = 0; row < height; ++row) {
+		memcpy(&flipped[row * stride],
+			&buffer[(height - 1 - row) * stride],
+			stride);
+	}
+
+	// Save as PNG 
+	stbi_write_png(filename.c_str(), width, height, nrChannels, flipped.data(), stride);
+	std::cout << "Saved screenshot: " << filename << std::endl;
+}
+
 
 static bool aKeyPressedLastFrame = false;
 
@@ -26,6 +72,7 @@ void resetBool(SceneNode* root) {
 	root->addBranch = false;
 	root->midBranch = false;
 	root->trackOriginalBranch = false;
+	root->toMerge = false;
 	for (SceneNode* child : root->children) {
 		resetBool(child);
 	}
@@ -75,35 +122,81 @@ void fillMappingGeometry(
 	}
 }
 
-// SharedState.h
 struct SharedState {
 	SceneNode* rootNode = nullptr;
 	glm::mat4 viewMatrix;
 	glm::mat4 projMatrix;
-	std::vector<glm::vec3> contour;
-	CPU_Geometry geom;
+	//std::vector<glm::vec3> contour;
+	//CPU_Geometry geom;
 };
 
 SharedState gSharedState;
 bool clicked;
+glm::vec3 worldPos;
+
+//void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+//	int width, height;
+//	glfwGetWindowSize(window, &width, &height);
+//
+//	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+//		clicked = true;
+//
+//		double xpos, ypos;
+//		glfwGetCursorPos(window, &xpos, &ypos);
+//
+//		float normalizedX = -1.0f + 2.0f * float(xpos) / width;
+//		float normalizedY = 1.0f - 2.0f * float(ypos) / height;
+//
+//		glm::vec4 clipCoords = glm::vec4(normalizedX, normalizedY, -1.0f, 1.0f); 
+//
+//		glm::mat4 invProj = glm::inverse(gSharedState.projMatrix);
+//		glm::vec4 viewCoords = invProj * clipCoords;
+//		viewCoords /= viewCoords.w;
+//
+//		glm::mat4 invView = glm::inverse(gSharedState.viewMatrix);
+//		glm::vec4 worldCoords = invView * viewCoords;
+//		worldCoords /= worldCoords.w;
+//		worldCoords.z = 0.f;
+//
+//		std::cout << "World Position: "
+//			<< worldCoords.x << ", "
+//			<< worldCoords.y << ", "
+//			<< worldCoords.z << ", "
+//			<< worldCoords.w << std::endl;
+//	}
+//}
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+	int width, height;
+	glfwGetWindowSize(window, &width, &height);
+
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
 		clicked = true;
 		double xpos, ypos;
 		glfwGetCursorPos(window, &xpos, &ypos);
 
-		if (gSharedState.rootNode) {
-			gSharedState.rootNode->handleMouseClick(
-				xpos, ypos, 800.f, 800.f,
-				gSharedState.viewMatrix,
-				gSharedState.projMatrix,
-				gSharedState.contour,
-				gSharedState.geom
-			);
-		}
+		float x = (2.0f * xpos) / width - 1.0f;
+		float y = 1.0f - (2.0f * ypos) / height;
+		float z = 1.0f;
+
+		glm::vec3 rayNDS(x, y, z);
+		glm::vec4 rayClip(rayNDS.x, rayNDS.y, -1.0f, 1.0f);
+
+		glm::vec4 rayEye = glm::inverse(gSharedState.projMatrix) * rayClip;
+		rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f); 
+
+		glm::vec3 rayWorld = glm::vec3(glm::inverse(gSharedState.viewMatrix) * rayEye);
+		rayWorld = glm::normalize(rayWorld);
+
+		glm::vec3 camPos = glm::vec3(glm::inverse(gSharedState.viewMatrix)[3]);
+
+		float t = -camPos.z / rayWorld.z;
+		worldPos = camPos + t * rayWorld;
+
+		std::cout << "World position: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
 	}
 }
+
 
 GLuint vao, vboPos, vboColor, ebo;
 
@@ -193,31 +286,37 @@ int main() {
 	CPU_Geometry mappingLines;
 	
 	// camera setup
-	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 7), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
+	glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 5), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 800.f / 800.f, 0.1f, 100.f);
 	glm::mat4 viewProj = proj * view;
+	gSharedState.viewMatrix = view;
+	gSharedState.projMatrix = proj;
+	gSharedState.rootNode = root;
 	glUseProgram(shader);
 	glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 	float lastTime = glfwGetTime();
 
-
 	bool sPressed = false;
 	int branchCounter = 0;
+	bool screenshotRequested = false;
 	while (!glfwWindowShouldClose(window)) {
 		bool g_pressed = false;
 		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// animation
 		float currentTime = glfwGetTime();
 		float deltaTime = (currentTime - lastTime) / 10;
 		lastTime = currentTime;
+
+		// animate growth
 		int state = glfwGetKey(window, GLFW_KEY_G);
 		if (state == GLFW_PRESS)
 		{
 			g_pressed = true;
 			root->animate(deltaTime);
 		}
+
+		// split branch
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !sPressed) 
 		{
 			sPressed = true;
@@ -229,6 +328,7 @@ int main() {
 				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 				root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
 				bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+				branchingStructure.clear();
 				accumulateBranchingStructure(root, branchingStructure);
 				root->divided = false;
 			}
@@ -237,9 +337,39 @@ int main() {
 			sPressed = false;
 		}
 
+		// merge branch
+		if (clicked) {
+			for (int i = 0; i < branchingStructure.size(); i++) {
+				// clicked on a branching point
+				if ((abs(worldPos.x - branchingStructure[i]->globalTransformation[3].x) <= 0.05) && (abs(worldPos.y - branchingStructure[i]->globalTransformation[3].y) <= 0.05)) {
+					if (branchingStructure[i]->parent != NULL && !branchingStructure[i]->children.empty()) {
+						glm::vec3 parentBranch = glm::vec3(branchingStructure[i]->globalTransformation[3] - branchingStructure[i]->parent->globalTransformation[3]);
+						for (int j = 0; j < branchingStructure[i]->children.size(); j++) {
+							glm::vec3 childBranch = glm::vec3(branchingStructure[i]->children[j]->globalTransformation[3] - branchingStructure[i]->globalTransformation[3]);
+							float dotProduct = glm::dot(parentBranch, childBranch);
+							if (dotProduct == glm::length(branchingStructure[i]->globalTransformation[3] - branchingStructure[i]->parent->globalTransformation[3]) * glm::length(branchingStructure[i]->children[j]->globalTransformation[3] - branchingStructure[i]->globalTransformation[3]) ||
+								dotProduct == -glm::length(branchingStructure[i]->globalTransformation[3] - branchingStructure[i]->parent->globalTransformation[3]) * glm::length(branchingStructure[i]->children[j]->globalTransformation[3] - branchingStructure[i]->globalTransformation[3])) {
+								root->mergeBranch(root, branchingStructure[i], branchingStructure[i]->parent, branchingStructure[i]->children[j]);
+								root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+								root->printStructure(root);
+								root->rebindContourWithMergedBranch(root, bindings);
+								//for (int k = 0; k < bindings.size(); k++) {
+								//	std::cout << glm::to_string(bindings[k].contourPoint) << std::endl;
+								//	std::cout << glm::to_string(bindings[k].parentNode->globalTransformation[3]) << std::endl;
+								//	std::cout << glm::to_string(bindings[k].childNode->globalTransformation[3]) << std::endl;
+								//	std::cout << bindings[k].t << std::endl;
+								//}
+								resetBool(root);
+							}
+						}
+					}
+				}
+			}
+			clicked = false;
+		}
 
-		// only execute once per frame
-		int currentCKeyState = glfwGetKey(window, GLFW_KEY_A);
+		// add branch
+		int currentCKeyState = glfwGetKey(window, GLFW_KEY_A); // only execute once per frame
 		if (currentCKeyState == GLFW_PRESS && !aKeyPressedLastFrame)
 		{
 			float vs[] = {0.994907, 1.237082};
@@ -249,10 +379,10 @@ int main() {
 			std::uniform_real_distribution<float> dist(0.3f, computeMainAxisLength(root));    
 			//ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
 
-			ContourBinding* c = root->findContourPointToAddBranch(vs[branchCounter], root, bindings);
+			//ContourBinding* c = root->findContourPointToAddBranch(vs[branchCounter], root, bindings);
 			branchCounter = (branchCounter + 1) % 2;
 			
-			//ContourBinding* c = &bindings[35];
+			ContourBinding* c = &bindings[48];
 			//ContourBinding* c = &bindings[int(bindings.size()/2 * 1.3)];
 			//ContourBinding* c = &bindings[11];
 			//ContourBinding* c = &bindings[5];
@@ -260,7 +390,7 @@ int main() {
 			//ContourBinding* c = &bindings[14];
 			
 			// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch)
-			if (!(c->childNode->children.empty() && (c->t == 1 || c->blending == 1))) {
+			if (!(c->childNode->children.empty())) {
 				// storing copy of original branching structure
 				std::unordered_map<SceneNode*, SceneNode*> nodeMap;
 				SceneNode* originalRoot = SceneNode::cloneSceneNode(root, nullptr, nodeMap);
@@ -286,7 +416,8 @@ int main() {
 					// need to update branch
 					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 					//root->printStructure(root);;
-					root->rebindContourToNewBranchIndexBased(newNode, c, 2, toRebind, bindings);
+					root->rebindToNewBranch(newNode, toRebind, c, bindings);
+					//root->rebindContourToNewBranchIndexBased(newNode, c, 2, toRebind, bindings);
 					resetBool(root);
 				}
 				else {
@@ -324,10 +455,10 @@ int main() {
 		root->interpolateBranchTransforms(p, branchUpdates);
 
 		// add contour point and bind
+		branchingStructure.clear();
 		accumulateBranchingStructure(root, branchingStructure);
-		bindings = root->addContourPoints(bindings, branchingStructure);
-		root->adjustContourMapping(bindings);
-		bindings = root->snapContourPoints(bindings);
+		bindings = root->addContourPoints(bindings);
+		//bindings = root->snapContourPoints(bindings);
 		if (g_pressed) {
 			root->animationPerFrame(bindings);
 		}
@@ -335,7 +466,6 @@ int main() {
 		mappingLines.verts.clear();
 		mappingLines.indices.clear();
 
-		// UPDATE ONCE BRANCHES INTERPOLATE
 		int i = 0;
 		for (const auto& binding : bindings) {
 			int startIdx = mappingLines.verts.size();
@@ -380,6 +510,14 @@ int main() {
 		updateBuffers(mappingLines.verts, mappingLines.cols, mappingLines.indices);
 		glDrawArrays(GL_POINTS, 0, mappingLines.verts.size());
 		draw(GL_LINES, mappingLines.verts.size(), mappingLines.indices.size());
+
+		// Screenshot handling (AFTER rendering, BEFORE buffer swap)
+		if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+			int width, height;
+			glfwGetFramebufferSize(window, &width, &height);
+			saveScreenshot(width, height);
+			screenshotRequested = false;
+		}
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
