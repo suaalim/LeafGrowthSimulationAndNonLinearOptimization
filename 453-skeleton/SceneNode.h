@@ -10,6 +10,8 @@
 #include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
 
+
+void printMat4(const glm::mat4& mat);
 // define the class before the struct since it uses the class
 class SceneNode;
 
@@ -28,6 +30,9 @@ struct ContourBinding {
 	glm::mat4 previousAnimateInverse;
 	bool newBranchBinding = false;
 	float blending;
+	// compute normal direction
+	glm::vec3 normalDirection = glm::vec3(0.f);
+	float normalFactor = 0.05f;
 };
 
 // SceneNode for Scene Graph
@@ -55,15 +60,15 @@ public:
 	std::vector<glm::vec3> midPoints(std::vector<glm::vec3>& contourPoints);
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
-	void animationPerFrame(std::vector<ContourBinding>& bindings);
+	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
 
-	bool divideBranch(SceneNode* node, float threshold);
+	bool divideBranch(SceneNode* node, float threshold, float division);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour);
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
 	void rebindContourToNewBranchIndexBased(SceneNode* node, ContourBinding* contour, int division, std::vector<size_t>& toRebind, std::vector<ContourBinding>& bindings);
-	void rebindToNewBranch(SceneNode* newNode, std::vector<size_t> toRebind, ContourBinding* contour, std::vector<ContourBinding>& bindings);
+	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings, float dist);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<size_t> contourBindingIndicesToRebind(const std::vector<ContourBinding>& bindings, SceneNode* root);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
@@ -71,6 +76,7 @@ public:
 	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings);
 	bool mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode* parentToMerge, SceneNode* childToMerge);
 	void rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings);
+	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void handleMouseClick(double xpos, double ypos, int screenWidth, int screenHeight, glm::mat4 view, glm::mat4 projection);
 	void printStructure(SceneNode* node);
 
@@ -111,6 +117,8 @@ private:
 	glm::mat4 animateScaling = glm::mat4(1.0f);
 	// expansion (horizontal scaling)
 	glm::mat4 expansion = glm::mat4(1.f);
+	// expansion (normal direction)
+	glm::mat4 normal = glm::mat4(1.f);
 	// animation variables
 	float deltatime = 0.0f;
 	float animationDirection = 1.0f; // left and right branch rotation (+angle, -angle)
