@@ -156,6 +156,8 @@ void resetBool(SceneNode* root) {
 	root->midBranch = false;
 	root->trackOriginalBranch = false;
 	root->toMerge = false;
+	//root->divided = false;
+	//root->merged = false;
 	for (SceneNode* child : root->children) {
 		resetBool(child);
 	}
@@ -252,9 +254,12 @@ struct SharedState {
 SharedState gSharedState;
 bool clickedToRemove;
 bool clickedToAdd;
+bool clickedToAddRight;
 glm::vec3 worldPos;
+glm::vec3 cameraStart = glm::vec3(0.0f, 0.70f, 5.0f);
+glm::vec3 cameraTarget = glm::vec3(0.0f, 0.70f, 0.0f);
 
-Camera* camera = new Camera(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+Camera* camera = new Camera(cameraStart, cameraTarget);
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 	if (camera) {
@@ -264,7 +269,6 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-		clickedToRemove = true;
 		clickedToAdd = true;
 		int width, height;
 		glfwGetWindowSize(window, &width, &height);
@@ -272,15 +276,36 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 		double xpos, ypos;
 		glfwGetCursorPos(window, &xpos, &ypos);
 
-		// Flip Y since OpenGL origin is bottom-left
 		ypos = height - ypos;
 
-		// You can pick a specific depth. For 2D selection, use 0 (near plane) or 1 (far)
-		float depth = 0.0f; // This could be 0.0, or you could read the actual depth buffer
+		float depth = 0.0f;
 
 		glm::vec3 screenPos = glm::vec3(xpos, ypos, depth);
 
-		// Unproject to world space
+		glm::vec4 viewport = glm::vec4(0.0f, 0.0f, width, height);
+		worldPos = glm::unProject(
+			screenPos,
+			gSharedState.viewMatrix,
+			gSharedState.projMatrix,
+			viewport
+		);
+
+		std::cout << "World position: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
+	}
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+		clickedToRemove = true;
+		int width, height;
+		glfwGetWindowSize(window, &width, &height);
+
+		double xpos, ypos;
+		glfwGetCursorPos(window, &xpos, &ypos);
+
+		ypos = height - ypos;
+
+		float depth = 0.0f;
+
+		glm::vec3 screenPos = glm::vec3(xpos, ypos, depth);
+
 		glm::vec4 viewport = glm::vec4(0.0f, 0.0f, width, height);
 		worldPos = glm::unProject(
 			screenPos,
@@ -293,9 +318,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 	}
 }
 
-
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	const float moveSpeed = 0.1f;
+	const float moveSpeed = 0.05f;
 
 	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
 		if (key == GLFW_KEY_UP) {
@@ -483,6 +507,7 @@ int main() {
 								root->rebindContourWithMergedBranch(root, bindings);
 								resetBool(root);
 							}
+							break;
 						}
 					}
 				}
@@ -498,11 +523,6 @@ int main() {
 					ContourBinding* c = &bindings[i];
 					// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch)
 					if (!(c->childNode->children.empty())) {
-						// storing copy of original branching structure
-						std::unordered_map<SceneNode*, SceneNode*> nodeMap;
-						SceneNode* originalRoot = SceneNode::cloneSceneNode(root, nullptr, nodeMap);
-						std::vector<ContourBinding> originalBindings = bindings;
-
 						root->divideBranchMinDistance(root, c);
 						splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 
@@ -518,7 +538,7 @@ int main() {
 
 						resetBool(root);
 					}
-					break; // run only for the first match
+					break; 
 				}
 			}
 			clickedToAdd = false;

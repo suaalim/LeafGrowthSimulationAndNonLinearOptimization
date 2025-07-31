@@ -360,7 +360,7 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	//temp3[3][1] = 0;
 	//temp3[3][2] = 0;
 
-	marginTransformation = parentTransform * localRotationMatrix * temp2 * expansion;
+	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation;
 	globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation;
 	//globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling *  localTranslation;
 	////we don't want scaling to affect the child
@@ -368,7 +368,7 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	temp1[0][0] = 1.0;
 	temp1[1][1] = 1.0;
 	temp1[2][2] = 1.0;
-	glm::mat4 newParentTransform = parentTransform * glm::toMat4(animateRotation) * localRotationMatrix * temp1;
+	glm::mat4 newParentTransform = parentTransform * localRotationMatrix * temp1;
 	glm::mat4 newParentTransformAnimation = newParentTransform;
 
 	// global to local rest post matrix
@@ -497,7 +497,7 @@ void getBranchSegmentsFromBinding(
 	}
 }
 
-std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3> findClosestPointBranch(std::vector<std::pair<SceneNode*, SceneNode*>>& segments, ContourBinding* contour, bool& found) {
+std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3, bool> findClosestPointBranch(std::vector<std::pair<SceneNode*, SceneNode*>>& segments, ContourBinding* contour, bool& found) {
 	SceneNode* p;
 	SceneNode* c;
 	float finalT;
@@ -540,6 +540,10 @@ std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3> findClosestPointBran
 					glm::vec3 p2 = glm::vec3(child->globalTransformation[3]);
 					glm::vec3 dir = p2 - p1;
 
+					//if (isPointOnSegment(contour->closestPoint, p1, p2)) {
+					//	finalT = glm::length(contour->closestPoint - p1) / glm::length(p2 - p1);
+					//	final_blending = finalT;
+					//}
 					//float t = glm::dot(contour->closestPoint - p1, dir) / (glm::dot(dir, dir));
 					float t = calculateT(p1, p2, contour->closestPoint);
 					if (t < -eps[i] || t > 1.0f + eps[i]) continue;
@@ -552,6 +556,14 @@ std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3> findClosestPointBran
 					blending = glm::clamp(blending, 0.0f, 1.0f);
 					final_blending = blending;
 
+					//glm::vec3 approximateClosestPoint = final_t * p2 + (1 - final_t) * p1;
+					//if (glm::length(approximateClosestPoint - contour->closestPoint) < 0.001f) {
+					//	//std::cout << glm::to_string(contour->contourPoint) << std::endl;
+					//	p = parent;
+					//	c = child;
+					//	finalT = glm::length(contour->closestPoint - p1) / glm::length(p2 - p1);
+					//	finalBlending = blending;
+					//}
 					p = parent;
 					c = child;
 					finalT = t;
@@ -568,14 +580,14 @@ std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3> findClosestPointBran
 		finalBlending = contour->blending;
 	}
 
-	return std::make_tuple(p, c, finalT, finalBlending, contour->closestPoint);
+	return std::make_tuple(p, c, finalT, finalBlending, contour->closestPoint, found);
 }
 
 void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings) {
 	for (ContourBinding& binding : bindings) {
 		// get the current closest point, find which branch to bind to
 		bool found = false;
-		std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3> branch = findClosestPointBranch(segments, &binding, found);
+		std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3, bool> branch = findClosestPointBranch(segments, &binding, found);
 		// guarantee t > 0
 		if (std::get<2>(branch) == 0 && std::get<0>(branch)->parent != NULL) {
 			binding.parentNode = std::get<0>(branch)->parent;
@@ -586,12 +598,21 @@ void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::
 			binding.closestPoint = calculateClosestPoint(binding);
 			continue;
 		}
-		binding.parentNode = std::get<0>(branch);
-		binding.childNode = std::get<1>(branch);
-		binding.t = std::get<2>(branch);
-		binding.blending = std::get<3>(branch);
-		binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
-		binding.closestPoint = calculateClosestPoint(binding);
+		// only rebind for points that are binded to subdivided branch
+		else if (std::get<5>(branch)) {
+			binding.parentNode = std::get<0>(branch);
+			binding.childNode = std::get<1>(branch);
+			binding.t = std::get<2>(branch);
+			binding.blending = std::get<3>(branch);
+			binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
+			binding.closestPoint = calculateClosestPoint(binding);
+		}
+		// also need to adjust the parent binding of the points that are children to subdivided branch (only the parentNode's animateMatrix change)
+		else if (binding.parentNode->midBranch && !binding.childNode->midBranch) {
+			binding.parentNode = binding.childNode->parent;
+			binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
+			binding.closestPoint = calculateClosestPoint(binding);
+		}
 	}
 }
 
@@ -610,15 +631,15 @@ bool SceneNode::mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode*
 				child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
 				child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(parentPos - childPos)));
 				child->localRotation = node->localRotation;
-				// S and expansionFactor remains unchanged
-				//child->rotationAngle = node->rotationAngle;
-				//child->animationDirection = node->animationDirection;
-				//child->animationAngle = node->animationAngle;
-				//child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-				//child->animationScaling = 1;
-				//child->animateScaling = glm::mat4(1.0);
-				//child->expansion = glm::mat4(1.f);
-				//child->expansionAmount = 1.f;
+				// S and expansionFactor remains unchanged?
+				child->rotationAngle = node->rotationAngle;
+				child->animationDirection = node->animationDirection;
+				child->animationAngle = 0.f;
+				child->animationScaling = 1;
+				child->expansionAmount = 1.f;
+				child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+				child->animateScaling = glm::mat4(1.0);
+				child->expansion = glm::mat4(1.f);
 
 				child->toMerge = true;
 				parentToMerge->toMerge = true;
@@ -662,12 +683,26 @@ SceneNode* findMergeBranch(SceneNode* node) {
 	return nullptr;
 }
 
+// check if a point belongs on a line segment
+bool isPointOnSegment(glm::vec2 A, glm::vec2 B, glm::vec2 P) {
+	float cross = (P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x);
+	if (fabs(cross) > 1e-6) return false;  // not collinear
+
+	float dot = (P.x - A.x) * (B.x - A.x) + (P.y - A.y) * (B.y - A.y);
+	if (dot < 0) return false; // before A
+
+	float lenSq = (B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y);
+	if (dot > lenSq) return false; // after B
+
+	return true;
+}
+
 void SceneNode::rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings) {
 	SceneNode* childBranchNode = findMergeBranch(node);
 	SceneNode* parentBranchNode = childBranchNode->parent;
 
-	for (ContourBinding& binding : bindings) {
-		if (binding.childNode == childBranchNode || binding.parentNode == parentBranchNode) {   
+	for (ContourBinding& binding : bindings) {      // if parentNode is the same, we need to make sure that it is in the right branch (there can be multiple branches with the same parent)
+		if (binding.childNode == childBranchNode || (binding.parentNode == parentBranchNode && isPointOnSegment(parentBranchNode->globalTransformation[3], childBranchNode->globalTransformation[3], binding.closestPoint))) {
 			binding.parentNode = parentBranchNode;
 			binding.childNode = childBranchNode;
 			binding.t = (glm::length(binding.closestPoint - glm::vec3(parentBranchNode->globalTransformation[3])) / glm::length(childBranchNode->globalTransformation[3] - parentBranchNode->globalTransformation[3]));
@@ -678,6 +713,21 @@ void SceneNode::rebindContourWithMergedBranch(SceneNode* node, std::vector<Conto
 			if (binding.t == 0 && parentBranchNode->parent != NULL) {
 				binding.parentNode = parentBranchNode->parent;
 				binding.childNode = parentBranchNode;
+				binding.blending = 1;
+				binding.t = 1;
+				binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
+				binding.closestPoint = calculateClosestPoint(binding);
+			}
+		}
+		// points binded to child of merged branch (animation matrix has to be recalculated because the parentNode changed)
+		else if (binding.parentNode == childBranchNode) {
+			binding.parentNode = childBranchNode;
+			binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
+			binding.closestPoint = calculateClosestPoint(binding);
+			// guarantee t > 0
+			if (binding.t == 0 && parentBranchNode->parent != NULL) {
+				binding.parentNode = parentBranchNode;
+				binding.childNode = childBranchNode;
 				binding.blending = 1;
 				binding.t = 1;
 				binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
@@ -719,7 +769,7 @@ ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint) {
 			glm::vec3 dir = childPos - parentPos;
 
 			const int steps = 50; 
-			for (int i = 0; i <= steps; ++i) {
+			for (int i = 0; i <= steps; i++) {
 				float t = static_cast<float>(i) / steps;
 				glm::vec3 projected = parentPos + t * dir;
 
@@ -735,7 +785,6 @@ ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint) {
 					d2 += glm::length(currPos - parentPos);
 					current = current->parent;
 				}
-
 
 				float totalDistance = d1 + (0.5f * d2);
 				if (totalDistance < minTotalDistance && projected != glm::vec3(0.f, 0.f, 0.f)) {   // don't want to add a new branch from the root
@@ -940,7 +989,7 @@ std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<Co
 	return result;
 }
 
-// rebind all the contour points that were binded to the broken branch
+// rebind all the contour points that were binded to the broken branch to the new branch
 void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings, float dist) {
 	std::vector<ContourBinding*> toRebind = getNearbyBindings(contour, bindings, dist);
 	// find the exact point to bind to the new branch
@@ -1729,8 +1778,8 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float d
 		glm::mat4 animatedPosMat = calculateAnimationMatrix(binding);
 		glm::vec3 bindingPosition = binding.closestPoint;   // translating by -bindingPosition moves it back to local space
 		binding.contourPoint = animatedPosMat  * binding.previousAnimateInverse * glm::vec4(binding.contourPoint, 1.0f);
-		binding.contourPoint.x += deltaTime * binding.normalFactor * binding.normalDirection.x;  // growth (translation) in the normal direction
-		binding.contourPoint.y += deltaTime * binding.normalFactor * binding.normalDirection.y;
+		//binding.contourPoint.x += deltaTime * binding.normalFactor * binding.normalDirection.x;  // growth (translation) in the normal direction
+		//binding.contourPoint.y += deltaTime * binding.normalFactor * binding.normalDirection.y;
 		//binding.contourPoint = glm::translate(bindingPosition) * animatedPosMat * binding.previousAnimateInverse * glm::translate(-bindingPosition) * glm::vec4(binding.contourPoint, 1.0f);
 		binding.closestPoint = animatedPosMat * binding.previousAnimateInverse * glm::vec4(binding.closestPoint, 1.0f);
 		binding.previousAnimateInverse = glm::inverse(animatedPosMat);
