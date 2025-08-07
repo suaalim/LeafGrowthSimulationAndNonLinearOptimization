@@ -43,10 +43,10 @@ public:
 	std::vector<ContourBinding> rebindContour(const std::vector<ContourBinding>& bindings, const std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
 	void addChild(SceneNode* child);
 	void removeChild(SceneNode* childToRemove);
-	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>> transformations);
-	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>> extractEdgeTransforms(const std::string& filename);
+	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>> transformations);
+	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>> extractEdgeTransforms(const std::string& filename);
 	static std::vector<std::vector<int>> buildChildrenList(
-		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>>& edges
+		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>>& edges
 	);
 	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry);
 	void animate(float deltaTime);
@@ -57,6 +57,7 @@ public:
 	static std::vector<glm::vec3> generateInitialContourControlPoints(SceneNode* root);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourCatmullRomGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourLinearGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourQuadraticGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<glm::vec3> midPoints(std::vector<glm::vec3>& contourPoints);
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
@@ -79,6 +80,8 @@ public:
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void handleMouseClick(double xpos, double ypos, int screenWidth, int screenHeight, glm::mat4 view, glm::mat4 projection);
 	void printStructure(SceneNode* node);
+
+	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V
@@ -115,20 +118,22 @@ private:
 	glm::mat4 animateTranslation = glm::mat4(1.0f);
 	glm::quat animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 	glm::mat4 animateScaling = glm::mat4(1.0f);
-	// expansion (horizontal scaling)
+	// expansion 
 	glm::mat4 expansion = glm::mat4(1.f);
-	// expansion (normal direction)
-	glm::mat4 normal = glm::mat4(1.f);
+	// growth
+	glm::mat4 growth = glm::mat4(1.f);
 	// animation variables
 	float deltatime = 0.0f;
 	float animationDirection = 1.0f; // left and right branch rotation (+angle, -angle)
 	float animationAngle = 0.0f;
-	float animationScaling = 1.0f;
 	float animationTime = 0.0f;
 	float animationDuration = 1.5f; // how long the animation lasts
-	float S = 1.f;
 	float rotationAngle = 0.f;
+	float animationScaling = 1.0f;
+	float S = 1.f;
 	float expansionAmount = 1.0f;
 	float expansionFactor = 1.f;
+	float growthAmount = 1.0f;
+	float growthFactor = 1.0f;
 };
 

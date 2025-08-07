@@ -407,7 +407,7 @@ int main() {
 	std::vector<CPU_Geometry> branchUpdates;
 	std::vector<SceneNode*> branchingStructure;
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
 	
@@ -423,10 +423,19 @@ int main() {
 	std::vector<std::pair<SceneNode*, SceneNode*>> newPairs;
 	int index = 0;
 	root->labelBranches(root, pairs, index);
+	root->getBranches(root, newPairs);
 	// catmullrom gives smooth curve, linear gives sharp curve
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourCatmullRomGrouped(contour, 25, pairs);
 	//std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourLinearGrouped(contour, 5, pairs);
+	//std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> groupedContour = root->contourQuadraticGrouped(contour, 1, pairs);
 	std::vector<ContourBinding> bindings = root->bindInterpolatedContourToBranches(groupedContour);
+	//std::vector<glm::vec3> contours;
+	//for (int i = 0; i < groupedContour.size(); i++) {
+	//	for (int j = 0; j < groupedContour[i].first.size(); j++) {
+	//		contours.push_back(groupedContour[i].first[j]);
+	//	}
+	//}
+	//std::vector<ContourBinding> bindings = root->bindContourToBranches(contours, root, newPairs);
 	// DEBUGGING PURPOSES
 	CPU_Geometry mappingLines;
 
