@@ -313,13 +313,13 @@ void SceneNode::animate(float deltaTime) {
 	else animationScaling = (1 + deltaTime * (S + parent->S) / 2.0) * animationScaling;  // average child and parent because this is branch scaling
 	animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling, animationScaling, 1.f));
 
-	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor * 3) * expansionAmount;        // expansionFactor controls expansion
+	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor) * expansionAmount;        // expansionFactor controls expansion
 	//else expansionAmount = (1 + deltaTime * (expansionFactor + parent->expansionFactor) / 2.0) * expansionAmount;
-	else expansionAmount = (1 + deltaTime * expansionFactor * 3) * expansionAmount;
+	else expansionAmount = (1 + deltaTime * expansionFactor) * expansionAmount;
 	expansion = glm::scale(glm::mat4(1.0f), glm::vec3(expansionAmount, 1.f, 1.f));  // horizontal expansion/expansion in the direction of binding
 
-	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor * 3) * growthAmount;       
-	else growthAmount = (1 + deltaTime * growthFactor * 3) * growthAmount;
+	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor) * growthAmount;       
+	else growthAmount = (1 + deltaTime * growthFactor) * growthAmount;
 	growth = glm::scale(glm::mat4(1.0f), glm::vec3(1.f, growthAmount, 1.f)); 
 
 	for (SceneNode* child : children) {
@@ -1885,48 +1885,26 @@ void SceneNode::calculateNormalDirection(std::vector<ContourBinding>& bindings) 
 void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime) {
 	int i = 0;
 	for (auto& binding : bindings) {
-		//if (i == 12 || i == 13 || i == 11) {
-		//	printf("point %d %f\n", i, binding.t);
-		//}
-		//i += 1;
-		//if (i == 11 || i == 12) {
-		//	std::cout << binding.t << std::endl;
-		//	std::cout << binding.blending << std::endl;
-		//}
 		glm::mat4 animatedPosMat = calculateAnimationMatrix(binding);
 		glm::vec3 bindingPosition = binding.closestPoint;   // translating by -bindingPosition moves it back to local space
 		binding.contourPoint = animatedPosMat  * binding.previousAnimateInverse * glm::vec4(binding.contourPoint, 1.0f);
+
+		// growth (translation) in the normal direction
 		//if (binding.childNode->children.empty()) {
-		//	binding.contourPoint.x += deltaTime * 100 * binding.normalFactor * binding.normalDirection.x;  // growth (translation) in the normal direction
+		//	binding.contourPoint.x += deltaTime * binding.normalFactor * binding.normalDirection.x;  
 		//	binding.contourPoint.y += deltaTime * binding.normalFactor * binding.normalDirection.y;
 		//}
+		
+		// transformation applied in local coordinate frame
 		//binding.contourPoint = glm::translate(bindingPosition) * animatedPosMat * binding.previousAnimateInverse * glm::translate(-bindingPosition) * glm::vec4(binding.contourPoint, 1.0f);
 		binding.closestPoint = animatedPosMat * binding.previousAnimateInverse * glm::vec4(binding.closestPoint, 1.0f);
 		binding.previousAnimateInverse = glm::inverse(animatedPosMat);
 		//binding.closestPoint = calculateClosestPoint(binding);
+
+		// update t value to reflect the non-linear g
 		binding.t = (glm::length(binding.closestPoint - glm::vec3(binding.parentNode->globalTransformation[3])) / glm::length(binding.childNode->globalTransformation[3] - binding.parentNode->globalTransformation[3]));
 
-		//if (i == (bindings.size()/2 - 1)) {
-		//	std::cout << i << std::endl;
-		//	std::cout << binding.t << std::endl;
-		//	//std::cout << binding.blending << std::endl;
-		//	std::cout << glm::to_string(binding.closestPoint) << std::endl;
-		//	std::cout << glm::to_string(binding.parentNode->globalTransformation[3]) << std::endl;
-		//}
 		i++;
 	}
 }
 
-void SceneNode::handleMouseClick(double xpos, double ypos, int screenWidth, int screenHeight, glm::mat4 view, glm::mat4 projection) {
-	glm::vec2 clickPos;
-	clickPos = glm::vec2(xpos, ypos);
-	clickPos += glm::vec2(0.5f, 0.5f);
-	clickPos /= (glm::vec2(screenWidth, screenHeight));
-	clickPos = glm::vec2(clickPos.x, 1.0f - clickPos.y);
-	clickPos *= 2.0f;
-	clickPos -= glm::vec2(1.0f, 1.0f);
-
-	//contourPoints.push_back(glm::vec3(clickPos, 0.0f));
-	//std::cout << glm::to_string(clickPos) << std::endl;
-
-}

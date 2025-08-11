@@ -78,7 +78,6 @@ public:
 	bool mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode* parentToMerge, SceneNode* childToMerge);
 	void rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings);
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
-	void handleMouseClick(double xpos, double ypos, int screenWidth, int screenHeight, glm::mat4 view, glm::mat4 projection);
 	void printStructure(SceneNode* node);
 
 	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
