@@ -197,7 +197,8 @@ void splitBranch(SceneNode* root, CPU_Geometry branchGeometry, std::vector<Conto
 	}
 }
 
-void insertNode(SceneNode* node, CPU_Geometry branchGeometry, std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>> pairs, std::vector<std::pair<SceneNode*, SceneNode*>> newPairs, int index, std::vector<SceneNode*>& branchingStructure, bool addContour) {
+// NOT USED ANYMORE
+void insertNode(SceneNode* node, CPU_Geometry branchGeometry, std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>> pairs, std::vector<std::pair<SceneNode*, SceneNode*>> newPairs, int index, std::vector<SceneNode*>& branchingStructure, bool addContour, int subdivisionCounter) {
 	if (!node) return;
 
 	std::vector<SceneNode*> originalChildren = node->children;
@@ -206,7 +207,8 @@ void insertNode(SceneNode* node, CPU_Geometry branchGeometry, std::vector<Contou
 		if (node->trackOriginalBranch && child->trackOriginalBranch) {
 			SceneNode* splitterNode = new SceneNode();
 			splitterNode->trackOriginalBranch = true;
-			node->divideBranch(node, 0.1f, 2);
+			node->divideBranch(node, 0.1f, 2, subdivisionCounter);
+			subdivisionCounter++;
 			//splitBranch(node, branchGeometry, bindings, pairs, newPairs, index, branchingStructure, addContour);
 			//std::cout << "node inserted" << std::endl;
 			//node->removeChild(child);
@@ -217,7 +219,7 @@ void insertNode(SceneNode* node, CPU_Geometry branchGeometry, std::vector<Contou
 			//splitterNode->localScaling = glm::mat4(1.0f);
 		}
 
-		insertNode(child, branchGeometry, bindings, pairs, newPairs, index, branchingStructure, addContour);
+		insertNode(child, branchGeometry, bindings, pairs, newPairs, index, branchingStructure, addContour, subdivisionCounter);
 	}
 }
 
@@ -445,6 +447,7 @@ int main() {
 	bool tKeyPressedLastFrame = false;
 	int branchCounter = 0;
 	bool screenshotRequested = false;
+	int subdivisionCounter = 0;
 
 	while (!glfwWindowShouldClose(window)) {
 		bool g_pressed = false;
@@ -479,7 +482,7 @@ int main() {
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !sPressed) 
 		{
 			sPressed = true;
-			if (root->divideBranch(root, .1f, 2.f)) {
+			if (root->divideBranch(root, .1f, 2.f, subdivisionCounter)) {
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 				//pairs.clear();
 				//root->labelBranches(root, pairs, index);
@@ -490,6 +493,9 @@ int main() {
 				//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 				//branchingStructure.clear();
 				//accumulateBranchingStructure(root, branchingStructure);
+				root->printStructure(root);
+				printf("--------------------\n");
+				subdivisionCounter++;
 				resetBool(root);
 			}
 		}
@@ -619,7 +625,7 @@ int main() {
 		int tKeyState = glfwGetKey(window, GLFW_KEY_T);
 		if (tKeyState == GLFW_PRESS && !tKeyPressedLastFrame) {
 			for (int i = 0; i < 10; i++) {
-				if (root->divideBranch(root, .1f, 2.f)) {
+				if (root->divideBranch(root, .1f, 2.f, subdivisionCounter)) {
 					splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 					resetBool(root);
 				}
