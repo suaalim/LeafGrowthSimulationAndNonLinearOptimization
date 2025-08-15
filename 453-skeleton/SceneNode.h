@@ -43,10 +43,10 @@ public:
 	std::vector<ContourBinding> rebindContour(const std::vector<ContourBinding>& bindings, const std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
 	void addChild(SceneNode* child);
 	void removeChild(SceneNode* childToRemove);
-	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>> transformations);
-	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>> extractEdgeTransforms(const std::string& filename);
+	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> transformations);
+	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> extractEdgeTransforms(const std::string& filename);
 	static std::vector<std::vector<int>> buildChildrenList(
-		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>>& edges
+		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>>& edges
 	);
 	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry);
 	void animate(float deltaTime);
@@ -63,7 +63,7 @@ public:
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
 	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
 
-	bool divideBranch(SceneNode* node, float threshold, float division, int subdivisionCounter);
+	bool divideBranch(SceneNode* node, float threshold, float division, bool bidirectionalGrowth);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour);
@@ -126,7 +126,7 @@ private:
 	float animationDirection = 1.0f; // left and right branch rotation (+angle, -angle)
 	float animationAngle = 0.0f;
 	float animationTime = 0.0f;
-	float animationDuration = 1.5f; // how long the animation lasts
+	float animationDuration = 1.f; // how long the animation lasts
 	float rotationAngle = 0.f;
 	float animationScaling = 1.0f;
 	float S = 1.f;
@@ -134,5 +134,6 @@ private:
 	float expansionFactor = 1.f;
 	float growthAmount = 1.0f;
 	float growthFactor = 1.0f;
+	float positionOnBranch = 1.f; // to calculate positional information
 };
 

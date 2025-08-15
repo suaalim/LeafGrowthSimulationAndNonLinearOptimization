@@ -409,7 +409,7 @@ int main() {
 	std::vector<CPU_Geometry> branchUpdates;
 	std::vector<SceneNode*> branchingStructure;
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
 	
@@ -447,7 +447,7 @@ int main() {
 	bool tKeyPressedLastFrame = false;
 	int branchCounter = 0;
 	bool screenshotRequested = false;
-	int subdivisionCounter = 0;
+	bool bidirectionalGrowth = false;
 
 	while (!glfwWindowShouldClose(window)) {
 		bool g_pressed = false;
@@ -477,12 +477,11 @@ int main() {
 			root->animate(deltaTime);
 		}
 		
-
 		// split branch
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !sPressed) 
 		{
 			sPressed = true;
-			if (root->divideBranch(root, .1f, 2.f, subdivisionCounter)) {
+			if (root->divideBranch(root, .1f, 2.f, bidirectionalGrowth)) {
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 				//pairs.clear();
 				//root->labelBranches(root, pairs, index);
@@ -495,7 +494,12 @@ int main() {
 				//accumulateBranchingStructure(root, branchingStructure);
 				root->printStructure(root);
 				printf("--------------------\n");
-				subdivisionCounter++;
+
+				//for (int i = 0; i < bindings.size(); i++) {
+				//	printMat4(bindings[i].childNode->globalTransformation);
+				//}
+				//printf("--------------------\n");
+
 				resetBool(root);
 			}
 		}
@@ -625,7 +629,7 @@ int main() {
 		int tKeyState = glfwGetKey(window, GLFW_KEY_T);
 		if (tKeyState == GLFW_PRESS && !tKeyPressedLastFrame) {
 			for (int i = 0; i < 10; i++) {
-				if (root->divideBranch(root, .1f, 2.f, subdivisionCounter)) {
+				if (root->divideBranch(root, .1f, 2.f, bidirectionalGrowth)) {
 					splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 					resetBool(root);
 				}
