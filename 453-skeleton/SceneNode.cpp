@@ -677,6 +677,7 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings) {
 	for (auto& binding : bindings) {
 		glm::mat4 animatedPosMat = binding.t * binding.childNode->globalTransformation + (1 - binding.t) * (binding.parentNode->globalTransformation);
 		binding.contourPoint = animatedPosMat * binding.previousAnimateInverse * glm::vec4(binding.contourPoint, 1.0f);
+		binding.closestPoint = animatedPosMat * binding.previousAnimateInverse * glm::vec4(binding.closestPoint, 1.0f);
 		binding.previousAnimateInverse = glm::inverse(binding.t * binding.childNode->globalTransformation + (1 - binding.t) *binding.parentNode->globalTransformation);
 	}
 }
