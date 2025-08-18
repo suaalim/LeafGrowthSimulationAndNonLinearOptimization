@@ -60,14 +60,14 @@ glm::mat4 parseMatrix(std::ifstream& in) {
 }
 
 // extract the local matrices per edge
-std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> SceneNode::extractEdgeTransforms(const std::string& filename) {
+std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> SceneNode::extractEdgeTransforms(const std::string& filename) {
 	std::ifstream in(filename);
 	if (!in.is_open()) {
 		std::cerr << "Failed to open file\n";
 		return {};
 	}
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> edges;
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edges;
 	std::string line;
 	std::regex edgeRegex(R"#(Edge\s+(\d+)\s+->\s+(\d+))#");
 	std::smatch match;
@@ -93,8 +93,17 @@ std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, fl
 			std::getline(in, line);
 			std::getline(in, line); // rotation angle
 			float rotationAngle = std::stof(line);
+			std::getline(in, line);
+			std::getline(in, line); // expansion factor
+			float expansionFactor = std::stof(line);
+			std::getline(in, line);
+			std::getline(in, line); // growth factor
+			float growthFactor = std::stof(line);
+			std::getline(in, line);
+			std::getline(in, line); // position on branch
+			float branchPosition = std::stof(line);
 
-			edges.emplace_back(parent, child, rotation, scaling, translation, scalingFactor, rotationDirection, rotationAngle);
+			edges.emplace_back(parent, child, rotation, scaling, translation, scalingFactor, rotationDirection, rotationAngle, expansionFactor, growthFactor, branchPosition);
 		}
 	}
 
@@ -102,17 +111,17 @@ std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, fl
 }
 
 std::vector<std::vector<int>> SceneNode::buildChildrenList(
-	const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>>& edges
+	const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>>& edges
 ) {
 	// maximum node index
 	int maxIndex = 0;
-	for (const auto& [parent, child, rot, scale, trans, scaleF, rotationD, rotationA] : edges) {
+	for (const auto& [parent, child, rot, scale, trans, scaleF, rotationD, rotationA, expansionF, growthF, branchPos] : edges) {
 		maxIndex = std::max({ maxIndex, parent, child });
 	}
 
 	std::vector<std::vector<int>> childrenList(maxIndex + 1);
 
-	for (const auto& [parent, child, rot, scale, trans, scaleF, rotationD, rotationA] : edges) {
+	for (const auto& [parent, child, rot, scale, trans, scaleF, rotationD, rotationA, expansionF, growthF, branchPos] : edges) {
 		childrenList[parent].push_back(child);
 
 	}
@@ -122,15 +131,18 @@ std::vector<std::vector<int>> SceneNode::buildChildrenList(
 
 
 SceneNode* SceneNode::createBranchingStructure(
-	int nodeIndex, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> transformations) {
+	int nodeIndex, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> transformations) {
 	// create node
 	SceneNode* node = new SceneNode();
 	node->localTranslation = glm::mat4(1.0f);
 	node->localRotation = glm::quat(1.0f, 0.f, 0.f, 0.f);
 	node->localScaling = glm::mat4(1.0f);
-	node->S = 1.f;
+	node->S = 0.f;
 	node->animationDirection = 0;
 	node->rotationAngle = 0.f;
+	//node->expansionFactor = 0.f;
+	//node->growthFactor = 0.f;
+	//node->positionOnBranch = 0.f;
 
 	// Loop over children of this node
 	for (int childIndex : parentChildPairs[nodeIndex]) {
@@ -159,7 +171,9 @@ SceneNode* SceneNode::createBranchingStructure(
 		childNode->S = std::get<5>(*it);
 		childNode->animationDirection = std::get<6>(*it);
 		childNode->rotationAngle = std::get<7>(*it);
-
+		//childNode->expansionFactor = std::get<8>(*it);
+		//childNode->growthFactor = std::get<9>(*it);
+		//childNode->positionOnBranch = std::get<10>(*it);
 		node->addChild(childNode);
 	}
 

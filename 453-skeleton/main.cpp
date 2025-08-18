@@ -130,7 +130,7 @@ int main() {
 	// branch initialization
 	CPU_Geometry branchGeometry;
 	std::vector<CPU_Geometry> branchUpdates;
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices8.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices9.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
 	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
@@ -216,7 +216,7 @@ int main() {
 		root->interpolateBranchTransforms(pairs, branchUpdates);
 		 
 		// add contour point if necessary and bind
-		bindings = root->addContourPoints(bindings);
+		//bindings = root->addContourPoints(bindings);
 		root->animationPerFrame(bindings);
 		for (int i = 0; i < bindings.size(); i++) {
 			contourGeometry.verts.push_back(bindings[i].contourPoint);
@@ -261,10 +261,10 @@ int main() {
 		glDrawArrays(GL_POINTS, 0, contourGeometry.verts.size());
 		glDrawArrays(GL_LINE_STRIP, 0, contourGeometry.verts.size());
 
-		//// Mapping (DEBUGGING PURPOSES)
-		//updateBuffers(mappingLines.verts, mappingLines.cols, mappingLines.indices);
-		//glDrawArrays(GL_POINTS, 0, mappingLines.verts.size());
-		//draw(GL_LINES, mappingLines.verts.size(), mappingLines.indices.size());
+		// Mapping (DEBUGGING PURPOSES)
+		updateBuffers(mappingLines.verts, mappingLines.cols, mappingLines.indices);
+		glDrawArrays(GL_POINTS, 0, mappingLines.verts.size());
+		draw(GL_LINES, mappingLines.verts.size(), mappingLines.indices.size());
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
