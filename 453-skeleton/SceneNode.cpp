@@ -320,9 +320,9 @@ void SceneNode::animate(float deltaTime) {
 	else animationScaling = (1 + deltaTime * (S * 0.5f + parent->S * 0.5f)) * animationScaling;  // average child and parent because this is branch scaling
 	animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling, animationScaling, 1.f));
 
-	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor * 2.5f) * expansionAmount;        // expansionFactor controls expansion
+	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor * 1.5f) * expansionAmount;        // expansionFactor controls expansion
 	//else expansionAmount = (1 + deltaTime * (expansionFactor + parent->expansionFactor) / 2.0) * expansionAmount;
-	else expansionAmount = (1 + deltaTime * expansionFactor * 2.5f) * expansionAmount;
+	else expansionAmount = (1 + deltaTime * expansionFactor * 1.5f) * expansionAmount;
 	expansion = glm::scale(glm::mat4(1.0f), glm::vec3(expansionAmount, 1.f, 1.f));  // horizontal expansion/expansion in the direction of binding
 
 	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor) * growthAmount;
@@ -381,7 +381,7 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	//temp3[3][1] = 0;
 	//temp3[3][2] = 0;
 
-	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation * expansion * growth;
+	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation * expansion;
 	globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation;
 	//globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling *  localTranslation;
 	////we don't want scaling to affect the child
@@ -491,7 +491,7 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 			if (bidirectionalGrowth) {
 				midNode->S = positionalInformationFunction(midNode->positionOnBranch);
 				midNode->expansionFactor = positionalInformationFunction(midNode->positionOnBranch);
-				//midNode->expansionFactor *= 0.5f;
+				midNode->expansionFactor *= 0.5f;
 			}
 
 			midNode->rotationAngle = child->rotationAngle;
@@ -518,7 +518,7 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 			if (bidirectionalGrowth) {
 				child->S = positionalInformationFunction(child->positionOnBranch);
 				child->expansionFactor = positionalInformationFunction(child->positionOnBranch);
-				//child->expansionFactor *= 0.5f;
+				child->expansionFactor *= 0.5f;
 			}
 
 			midNode->addChild(child);
@@ -967,6 +967,110 @@ bool SceneNode::divideBranchMinDistance(SceneNode* node, ContourBinding* contour
 
 	for (SceneNode* child : originalChildren) {
 		divided = divided || divideBranchMinDistance(child, contour);
+	}
+	return divided;
+}
+
+// find point to break
+void findBranchPointToBreak(ContourBinding* contour, float angle) {
+	glm::vec3 parentPos = glm::vec3(contour->parentNode->globalTransformation[3]);
+	glm::vec3 childPos = glm::vec3(contour->childNode->globalTransformation[3]);
+
+	// first, calculate the angle that the current binding point makes with the branch
+	glm::vec3 parentBranch = glm::vec3(contour->closestPoint - parentPos);
+	glm::vec3 newBranch = glm::vec3(contour->contourPoint - contour->closestPoint);
+	// calculate the angle for the new branch candidate
+	float cosine = glm::dot(parentBranch, newBranch) / (glm::length(parentBranch) * glm::length(newBranch));
+	float branchAngle = glm::acos(cosine);
+
+	if (branchAngle == angle) {
+		// return the branch point to break
+	}
+	else if (branchAngle > angle) {
+		// move down
+	}
+	else {
+		// move up
+	}
+}
+
+// dividing at the binding point
+bool SceneNode::divideBranchClosestPoint(SceneNode* node, ContourBinding* contour) {
+	// recurse on original children
+	std::vector<SceneNode*> originalChildren = node->children;
+	std::vector<SceneNode*> updatedChildren;
+
+	divided = false;
+
+	for (SceneNode* child : originalChildren) {
+		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
+		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
+		float distance = glm::length(childPos - parentPos);
+
+		// find the branch that the contour is binded to
+		if (node->globalTransformation[3] == contour->parentNode->globalTransformation[3] && child->globalTransformation[3] == contour->childNode->globalTransformation[3]) {
+			divided = true;
+
+			SceneNode* midNode = new SceneNode();
+
+			// break in the closest point
+			midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
+			midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(contour->closestPoint - parentPos)));
+			midNode->localRotation = child->localRotation;
+			midNode->S = glm::mix(child->parent->S, child->S, (glm::length(contour->closestPoint - parentPos) / distance));
+			midNode->expansionFactor = glm::mix(child->parent->expansionFactor, child->expansionFactor, (glm::length(contour->closestPoint - parentPos) / distance));
+			midNode->growthFactor = glm::mix(child->parent->growthFactor, child->growthFactor, (glm::length(contour->closestPoint - parentPos) / distance));
+			midNode->positionOnBranch = glm::mix(child->parent->positionOnBranch, child->positionOnBranch, (glm::length(contour->closestPoint - parentPos) / distance));
+			midNode->rotationAngle = child->rotationAngle;
+			midNode->animationDirection = child->animationDirection;
+			midNode->animationAngle = child->animationAngle;
+			midNode->animateRotation = child->animateRotation;
+			midNode->animationScaling = 1;
+			midNode->animateScaling = glm::mat4(1.0);
+			// this function is simply for dividng to add branch; no need to consider different growth gradient
+			// need to take a ratio/portion of expansion & growth?
+
+			// child set to identity
+			child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
+			child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(childPos - contour->closestPoint)));
+			child->localRotation = glm::mat4(1.f);
+			child->rotationAngle = 0;
+			child->animationDirection = 0;
+			child->animationAngle = 0.f;
+			child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+			child->animationScaling = 1;
+			child->animateScaling = glm::mat4(1.0);
+			//child->positionOnBranch = positionalInformaionFunction(child->positionOnBranch);
+			//child->expansion = glm::mat4(1.f);
+			//child->growth = glm::mat4(1.f);
+
+			midNode->addChild(child);
+			midNode->parent = node;
+			updatedChildren.push_back(midNode);
+			// distinguish as new branch
+			node->midBranch = true;
+			midNode->midBranch = true;
+			child->midBranch = true;
+
+			node->trackOriginalBranch = true;   // parent of new node
+			child->trackOriginalBranch = true;   // child of new node
+			// to rebind all contour points that are binded to these branches; need to exclusively include the contour's original branch because the new branch might be added to a different branch
+			// so if we don't include the contour's original binded branch, the order of rebinding might get messed up
+			contour->parentNode->trackOriginalBranch = true;
+			contour->childNode->trackOriginalBranch = true;
+
+			// to add new branch at midNode
+			midNode->addBranch = true;
+		}
+		else {
+			updatedChildren.push_back(child);
+		}
+	}
+
+	node->children = updatedChildren;
+
+	for (SceneNode* child : originalChildren) {
+		divided = divided || divideBranchClosestPoint(child, contour);
 	}
 	return divided;
 }
@@ -1898,7 +2002,7 @@ SceneNode* getDeeperNode(SceneNode* a, SceneNode* b) {
 std::vector<ContourBinding> SceneNode::addContourPoints(std::vector<ContourBinding>& bindings) {
 	std::vector<ContourBinding> newBindingSet;
 	// arbitrary threshold
-	float threshold = 0.05f;
+	float threshold = 0.01f;
 	for (int i = 0; i < bindings.size() - 1; i++) {
 		float distance = glm::length(bindings[i + 1].contourPoint - bindings[i].contourPoint);
 		if (distance > threshold) {

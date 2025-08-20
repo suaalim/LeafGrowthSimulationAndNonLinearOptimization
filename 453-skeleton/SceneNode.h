@@ -80,6 +80,8 @@ public:
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void printStructure(SceneNode* node);
 
+	bool divideBranchClosestPoint(SceneNode* node, ContourBinding* contour);
+
 	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);

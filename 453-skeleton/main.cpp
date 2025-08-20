@@ -156,32 +156,6 @@ void splitBranch(SceneNode* root, CPU_Geometry branchGeometry, std::vector<Conto
 	}
 }
 
-// NOT USED ANYMORE
-void insertNode(SceneNode* node, CPU_Geometry branchGeometry, std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>> pairs, std::vector<std::pair<SceneNode*, SceneNode*>> newPairs, int index, std::vector<SceneNode*>& branchingStructure, bool addContour, int subdivisionCounter) {
-	if (!node) return;
-
-	std::vector<SceneNode*> originalChildren = node->children;
-
-	for (SceneNode* child : originalChildren) {
-		if (node->trackOriginalBranch && child->trackOriginalBranch) {
-			SceneNode* splitterNode = new SceneNode();
-			splitterNode->trackOriginalBranch = true;
-			node->divideBranch(node, 0.1f, 2, subdivisionCounter);
-			subdivisionCounter++;
-			//splitBranch(node, branchGeometry, bindings, pairs, newPairs, index, branchingStructure, addContour);
-			//std::cout << "node inserted" << std::endl;
-			//node->removeChild(child);
-			//node->addChild(splitterNode);
-			//splitterNode->addChild(child);
-			//splitterNode->localTranslation = glm::mat4(1.0f);
-			//splitterNode->localRotation = glm::mat4(1.0f);
-			//splitterNode->localScaling = glm::mat4(1.0f);
-		}
-
-		insertNode(child, branchGeometry, bindings, pairs, newPairs, index, branchingStructure, addContour, subdivisionCounter);
-	}
-}
-
 // DEBUGGING 
 void printVectorOfPairs(const std::vector<std::pair<glm::vec3, glm::vec3>>& vec) {
 	for (const auto& pair : vec) {
@@ -440,7 +414,7 @@ int main() {
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)  //  && !sPressed to only execute once per press 
 		{
 			sPressed = true;
-			if (root->divideBranch(root, .1f, 2.f, bidirectionalGrowth)) {
+			if (root->divideBranch(root, .005f, 2.5f, bidirectionalGrowth = true)) {
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 				//pairs.clear();
 				//root->labelBranches(root, pairs, index);
@@ -501,7 +475,8 @@ int main() {
 					ContourBinding* c = &bindings[i];
 					// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch)
 					if (!(c->childNode->children.empty())) {
-						root->divideBranchMinDistance(root, c);
+						root->divideBranchClosestPoint(root, c);    // simply just binding point
+						//root->divideBranchMinDistance(root, c);   // newPhytologist approach
 						splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 
 						// add new branch
@@ -511,8 +486,7 @@ int main() {
 						newPairs.clear();
 						index = 0;
 						root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-						root->rebindToNewBranch(newNode, c, bindings, 0.1f);
-						//insertNode(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
+						root->rebindToNewBranch(newNode, c, bindings, 0.05f);
 
 						resetBool(root);
 					}
