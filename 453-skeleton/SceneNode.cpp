@@ -701,7 +701,6 @@ bool SceneNode::mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode*
 				child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
 				child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(parentPos - childPos)));
 				child->localRotation = node->localRotation;
-				// S, expansionFactor, growthFactor remains unchanged?
 				child->rotationAngle = node->rotationAngle;
 				child->animationDirection = node->animationDirection;
 				child->animationAngle = 0.f;
@@ -712,7 +711,11 @@ bool SceneNode::mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode*
 				child->expansion = glm::mat4(1.f);
 				//child->growth = glm::mat4(1.f);
 
-				// if had bidirectional growth, S and positionOnBranch must be handled separately
+				// S, expansionFactor, growthFactor remains unchanged if acropetal or basipetal growth
+				// if bidirectional growth, S and growthFactor must be handled separately
+				if (parentToMerge->S == 0.f && childToMerge->S == 0.f) child->S = nodeToRemove->S;
+				if (parentToMerge->expansionFactor == 0.f && childToMerge->expansionFactor == 0.f) child->expansionFactor = nodeToRemove->expansionFactor;
+				if (parentToMerge->growthFactor == 0.f && childToMerge->growthFactor == 0.f) child->growthFactor = nodeToRemove->growthFactor;
 
 				child->toMerge = true;
 				parentToMerge->toMerge = true;
