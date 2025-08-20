@@ -701,7 +701,6 @@ bool SceneNode::mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode*
 				child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
 				child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(parentPos - childPos)));
 				child->localRotation = node->localRotation;
-				// S, expansionFactor, growthFactor remains unchanged?
 				child->rotationAngle = node->rotationAngle;
 				child->animationDirection = node->animationDirection;
 				child->animationAngle = 0.f;
@@ -712,7 +711,11 @@ bool SceneNode::mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode*
 				child->expansion = glm::mat4(1.f);
 				//child->growth = glm::mat4(1.f);
 
-				// if had bidirectional growth, S and positionOnBranch must be handled separately
+				// S, expansionFactor, growthFactor remains unchanged if acropetal or basipetal growth
+				// if bidirectional growth, S and growthFactor must be handled separately
+				if (parentToMerge->S == 0.f && childToMerge->S == 0.f) child->S = nodeToRemove->S;    
+				if (parentToMerge->expansionFactor == 0.f && childToMerge->expansionFactor == 0.f) child->expansionFactor = nodeToRemove->expansionFactor;
+				if (parentToMerge->growthFactor == 0.f && childToMerge->growthFactor == 0.f) child->growthFactor = nodeToRemove->growthFactor;
 
 				child->toMerge = true;
 				parentToMerge->toMerge = true;
@@ -971,28 +974,6 @@ bool SceneNode::divideBranchMinDistance(SceneNode* node, ContourBinding* contour
 	return divided;
 }
 
-// find point to break
-void findBranchPointToBreak(ContourBinding* contour, float angle) {
-	glm::vec3 parentPos = glm::vec3(contour->parentNode->globalTransformation[3]);
-	glm::vec3 childPos = glm::vec3(contour->childNode->globalTransformation[3]);
-
-	// first, calculate the angle that the current binding point makes with the branch
-	glm::vec3 parentBranch = glm::vec3(contour->closestPoint - parentPos);
-	glm::vec3 newBranch = glm::vec3(contour->contourPoint - contour->closestPoint);
-	// calculate the angle for the new branch candidate
-	float cosine = glm::dot(parentBranch, newBranch) / (glm::length(parentBranch) * glm::length(newBranch));
-	float branchAngle = glm::acos(cosine);
-
-	if (branchAngle == angle) {
-		// return the branch point to break
-	}
-	else if (branchAngle > angle) {
-		// move down
-	}
-	else {
-		// move up
-	}
-}
 
 // dividing at the binding point
 bool SceneNode::divideBranchClosestPoint(SceneNode* node, ContourBinding* contour) {
@@ -1090,7 +1071,7 @@ glm::quat SceneNode::accumulateRotationToRoot(SceneNode* node) {
 }
 
 // find the branch that was divided, add a new branch
-SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour) {
+std::pair<SceneNode*, float> SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour) {
 	if (node->addBranch) {
 		// found the midNode that we divided, add a new branch from here
 		SceneNode* newNode = new SceneNode();
@@ -1130,16 +1111,17 @@ SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour) {
 		node->addBranch = false;
 		// to add new branch
 		newNode->addBranch = true;
-
-		return newNode;
+		float length = glm::length(contour->contourPoint - glm::vec3(node->globalTransformation[3]));
+		auto myPair = std::make_pair(newNode, length);
+		return myPair;
 	}
 	else {
 		for (SceneNode* child : node->children) {
-			SceneNode* result = addNewBranch(child, contour);
-			if (result) return result;
+			std::pair<SceneNode*, float> result = addNewBranch(child, contour);
+			if (result.first && result.second != -1.0f) return result;
 		}
 	}
-	return nullptr;
+	return std::make_pair(nullptr, -1.0f);
 }
 
 std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, float distance) {
@@ -2002,7 +1984,7 @@ SceneNode* getDeeperNode(SceneNode* a, SceneNode* b) {
 std::vector<ContourBinding> SceneNode::addContourPoints(std::vector<ContourBinding>& bindings) {
 	std::vector<ContourBinding> newBindingSet;
 	// arbitrary threshold
-	float threshold = 0.01f;
+	float threshold = 0.05f;
 	for (int i = 0; i < bindings.size() - 1; i++) {
 		float distance = glm::length(bindings[i + 1].contourPoint - bindings[i].contourPoint);
 		if (distance > threshold) {

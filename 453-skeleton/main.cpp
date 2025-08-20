@@ -414,7 +414,7 @@ int main() {
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)  //  && !sPressed to only execute once per press 
 		{
 			sPressed = true;
-			if (root->divideBranch(root, .005f, 2.5f, bidirectionalGrowth = true)) {
+			if (root->divideBranch(root, .1f, 2.5f, bidirectionalGrowth)) {
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 				//pairs.clear();
 				//root->labelBranches(root, pairs, index);
@@ -480,13 +480,13 @@ int main() {
 						splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 
 						// add new branch
-						SceneNode* newNode = root->addNewBranch(root, c);
+						std::pair<SceneNode*, float> newNode = root->addNewBranch(root, c);
 						pairs.clear();
 						root->labelBranches(root, pairs, index);
 						newPairs.clear();
 						index = 0;
 						root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-						root->rebindToNewBranch(newNode, c, bindings, 0.05f);
+						root->rebindToNewBranch(newNode.first, c, bindings, newNode.second);
 
 						resetBool(root);
 					}
@@ -536,14 +536,14 @@ int main() {
 					//root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
 
 					// add new branch
-					SceneNode* newNode = root->addNewBranch(root, c);
+					std::pair<SceneNode*, float> newNode = root->addNewBranch(root, c);
 					pairs.clear();
 					root->labelBranches(root, pairs, index);
 					newPairs.clear();
 					index = 0;
 					// need to update branch
 					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-					root->rebindToNewBranch(newNode, c, bindings, 0.1f);
+					root->rebindToNewBranch(newNode.first, c, bindings, newNode.second);
 					//insertNode(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 
 					resetBool(root);
@@ -597,7 +597,7 @@ int main() {
 					splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 
 					// add new branch
-					SceneNode* newNode = root->addNewBranch(root, c);
+					std::pair<SceneNode*, float> newNode = root->addNewBranch(root, c);
 					pairs.clear();
 					root->labelBranches(root, pairs, index);
 					newPairs.clear();
@@ -605,7 +605,7 @@ int main() {
 					// need to update branch
 					root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 					//root->printStructure(root);;
-					root->rebindToNewBranch(newNode, c, bindings, 0.1f);
+					root->rebindToNewBranch(newNode.first, c, bindings, newNode.second);
 					//root->printStructure(root);
 					//insertNode(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 
