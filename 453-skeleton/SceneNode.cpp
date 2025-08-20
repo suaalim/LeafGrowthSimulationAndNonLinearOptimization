@@ -674,6 +674,7 @@ void SceneNode::animationPerFrameUsingMultipleWeights(std::vector<ContourBinding
 	// for each contour point, blend the transformation using the weight vector
 	for (auto& binding : bindings) {
 		animatedPoint = glm::vec3(0.f);
+		cPoint = glm::vec3(0.f);
 		// for each branch, get the branch trasnformation and blend using weight vector
 		for (int i = 0; i < segments.size(); i++) {
 			// weight * A' * inverseA * contour point
@@ -683,7 +684,7 @@ void SceneNode::animationPerFrameUsingMultipleWeights(std::vector<ContourBinding
 			
 		}
 		binding.contourPoint = animatedPoint;
-		//binding.closestPoint = cPoint;
+		binding.closestPoint = cPoint;
 	}
 }
 
