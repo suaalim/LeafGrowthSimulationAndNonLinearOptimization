@@ -10,6 +10,8 @@
 #include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
 
+
+void printMat4(const glm::mat4& mat);
 // define the class before the struct since it uses the class
 class SceneNode;
 
@@ -27,6 +29,10 @@ struct ContourBinding {
 	glm::vec3 closestPoint;
 	glm::mat4 previousAnimateInverse;
 	bool newBranchBinding = false;
+	float blending;
+	// compute normal direction
+	glm::vec3 normalDirection = glm::vec3(0.f);
+	float normalFactor = 0.05f;
 };
 
 // SceneNode for Scene Graph
@@ -36,48 +42,50 @@ public:
 	static SceneNode* cloneSceneNode(SceneNode* node, SceneNode* parent, std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
 	std::vector<ContourBinding> rebindContour(const std::vector<ContourBinding>& bindings, const std::unordered_map<SceneNode*, SceneNode*>& nodeMap);
 	void addChild(SceneNode* child);
-	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> transformations);
-	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>> extractEdgeTransforms(const std::string& filename);
+	void removeChild(SceneNode* childToRemove);
+	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> transformations);
+	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> extractEdgeTransforms(const std::string& filename);
 	static std::vector<std::vector<int>> buildChildrenList(
-		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float>>& edges
+		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>>& edges
 	);
-	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry);
+	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry);
 	void animate(float deltaTime);
 	void deleteSceneGraph(SceneNode* node);
-	static glm::vec3 intersectionPoint(glm::vec3 P, glm::vec3 Q, glm::vec3 R);
 	void getBranches(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 	void labelBranches(SceneNode* node, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments, int& i);
 	static void getLeafNodes(SceneNode* node, std::vector<SceneNode*>& leaves);
 	static std::vector<glm::vec3> generateInitialContourControlPoints(SceneNode* root);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourCatmullRomGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourLinearGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourQuadraticGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<glm::vec3> midPoints(std::vector<glm::vec3>& contourPoints);
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
-	std::tuple<SceneNode*, SceneNode*> findChildrenOfFirstCommonAncestorFromRoot(SceneNode* root, const ContourBinding& a, const ContourBinding& b);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
-	void animationPerFrame(std::vector<ContourBinding>& bindings);
-	void handleMouseClick(double xpos, double ypos, int screenWidth, int screenHeight,
-		glm::mat4 view, glm::mat4 projection, std::vector<glm::vec3> contourPoints, CPU_Geometry geom);
+	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
 
-	bool divideBranch(SceneNode* node, float threshold);
+	bool divideBranch(SceneNode* node, float threshold, float division, bool bidirectionalGrowth);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour);
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
-	std::vector<ContourBinding*> contourPointsToRebind(std::vector<ContourBinding>& bindings, SceneNode* root);
-	void rebindContourToNewBranch(SceneNode* node, ContourBinding* contour, int division, std::vector<ContourBinding*>& toRebind);
 	void rebindContourToNewBranchIndexBased(SceneNode* node, ContourBinding* contour, int division, std::vector<size_t>& toRebind, std::vector<ContourBinding>& bindings);
+	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings, float dist);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<size_t> contourBindingIndicesToRebind(const std::vector<ContourBinding>& bindings, SceneNode* root);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
-	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings, std::vector<SceneNode*>& branchingStructure);
+	std::vector<ContourBinding> snapContourPoints(std::vector<ContourBinding>& bindings);
+	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings);
+	bool mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode* parentToMerge, SceneNode* childToMerge);
+	void rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings);
+	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void printStructure(SceneNode* node);
-	void printMatrix(SceneNode* node);
-	bool divided;
+
+	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V
 	glm::mat4 globalTransformation = glm::mat4(1.0f);
+	glm::mat4 marginTransformation = glm::mat4(1.0f);
 	// global to local transformation for rest pose 
 	glm::mat4 restPoseInverse;
 	// rest pose
@@ -89,6 +97,10 @@ public:
 	bool addBranch = false;
 	// for rebinding group of contour points
 	bool trackOriginalBranch = false;
+	// for rebinding after merging
+	bool toMerge = false;
+	bool divided;
+	bool merged;
 
 	SceneNode* parent;
 	std::vector<SceneNode*> children;
@@ -105,14 +117,22 @@ private:
 	glm::mat4 animateTranslation = glm::mat4(1.0f);
 	glm::quat animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 	glm::mat4 animateScaling = glm::mat4(1.0f);
+	// expansion 
+	glm::mat4 expansion = glm::mat4(1.f);
+	// growth
+	glm::mat4 growth = glm::mat4(1.f);
 	// animation variables
 	float deltatime = 0.0f;
-	float animationDirection = 1.0f; // control how left and right branches move differently (+angle, -angle)
+	float animationDirection = 1.0f; // left and right branch rotation (+angle, -angle)
 	float animationAngle = 0.0f;
-	float animationScaling = 1.0f;
 	float animationTime = 0.0f;
-	float animationDuration = 1.2f; // how long the animation lasts
-	float S = 1.f;
+	float animationDuration = 2.5f; // how long the animation lasts
 	float rotationAngle = 0.f;
+	float animationScaling = 1.0f;
+	float S = 1.f;
+	float expansionAmount = 1.0f;
+	float expansionFactor = 1.f;
+	float growthAmount = 1.0f;
+	float growthFactor = 1.0f;
+	float positionOnBranch = 1.f; // to calculate positional information
 };
-
