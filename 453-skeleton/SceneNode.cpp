@@ -315,18 +315,19 @@ void SceneNode::animate(float deltaTime) {
 	//animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling));
 
 	if (parent == nullptr) animationScaling = (1 + deltaTime * S) * animationScaling;     // S controls growth
-	//else animationScaling = (1 + deltaTime * S) * animationScaling;
-	else animationScaling = (1 + deltaTime * (S + parent->S) / 2.0) * animationScaling;  // average child and parent because this is branch scaling
+	//else animationScaling = (1 + deltaTime * S) * animationScaling;  // not correct representation of growth rate distribution
+	//else animationScaling = (1 + deltaTime * (S + parent->S) / 2.0) * animationScaling;
+	else animationScaling = (1 + deltaTime * (S*0.5f + parent->S*0.5f)) * animationScaling;  // average child and parent because this is branch scaling
 	animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling, animationScaling, 1.f));
 
-	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor * 2.5) * expansionAmount;        // expansionFactor controls expansion
+	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor * 2.5f) * expansionAmount;        // expansionFactor controls expansion
 	//else expansionAmount = (1 + deltaTime * (expansionFactor + parent->expansionFactor) / 2.0) * expansionAmount;
-	else expansionAmount = (1 + deltaTime * expansionFactor * 2.5) * expansionAmount;
+	else expansionAmount = (1 + deltaTime * expansionFactor * 2.5f) * expansionAmount;
 	expansion = glm::scale(glm::mat4(1.0f), glm::vec3(expansionAmount, 1.f, 1.f));  // horizontal expansion/expansion in the direction of binding
 
-	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor) * growthAmount;       
-	else growthAmount = (1 + deltaTime * growthFactor) * growthAmount;
-	growth = glm::scale(glm::mat4(1.0f), glm::vec3(1.f, growthAmount, 1.f)); 
+	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor ) * growthAmount;       
+	else growthAmount = (1 + deltaTime * growthFactor ) * growthAmount;
+	growth = glm::scale(glm::mat4(1.0f), glm::vec3(1.f, growthAmount, 1.f));
 
 	for (SceneNode* child : children) {
 		child->animate(deltaTime);
@@ -363,7 +364,6 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	////temp2[2][2] = 1.0;
 	//glm::mat4 newParentTransform = parentTransform * animateRotationMatrix * localRotationMatrix * temp2;
 
-
 	// no rotation, removing scaling
 	glm::mat4 temp2 = animateScaling * localScaling * localTranslation;
 	temp2[0][0] = 1.f;
@@ -381,7 +381,7 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	//temp3[3][1] = 0;
 	//temp3[3][2] = 0;
 
-	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation;
+	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation * expansion * growth;
 	globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation;
 	//globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling *  localTranslation;
 	////we don't want scaling to affect the child
@@ -422,7 +422,7 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 }
 
 void SceneNode::printStructure(SceneNode* node) {
-	std::cout << node->S << std::endl;
+	std::cout << node->S << std::endl;;
 	for (SceneNode* child : node->children) {
 		printStructure(child);
 	}
@@ -430,13 +430,21 @@ void SceneNode::printStructure(SceneNode* node) {
 
 // positional information function to be used to calculate growth rate based on branch position
 // use for bidirectional growth gradient
-float positionalInformaionFunction(float positionOnBranch) {  
+float positionalInformationFunction(float positionOnBranch) {  
 	float info;
 	// piecewise function
-	if (positionOnBranch >= 0 && positionOnBranch <= 0.5f) info = 2 * positionOnBranch;
-	else info = -(2 * positionOnBranch) + 2;
+	if (positionOnBranch >= 0 && positionOnBranch <= 0.4f) info = (0.7f/0.4f) * positionOnBranch;
+	else info = -((0.7f/0.6f) * positionOnBranch) + (0.7f / 0.6f);
 	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
 }
+
+//float positionalInformaionFunction(float positionOnBranch) {
+//	float info;
+//	// piecewise function
+//	if (positionOnBranch >= 0 && positionOnBranch <= 0.5f) info = 2.f * positionOnBranch;
+//	else info = -((2.f) * positionOnBranch) + (2.f);
+//	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
+//}
 
 float inversePositionalInformationFunction(float info) {
 	float positionOnBranch;
@@ -480,7 +488,11 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 			midNode->expansionFactor = glm::mix(child->parent->expansionFactor, child->expansionFactor, 1/division);
 			midNode->growthFactor = glm::mix(child->parent->growthFactor, child->growthFactor, 1 / division);
 			midNode->positionOnBranch = glm::mix(child->parent->positionOnBranch, child->positionOnBranch, 1 / division);
-			if (bidirectionalGrowth) midNode->S = positionalInformaionFunction(midNode->positionOnBranch);   
+			if (bidirectionalGrowth) {
+				midNode->S = positionalInformationFunction(midNode->positionOnBranch);
+				midNode->expansionFactor = positionalInformationFunction(midNode->positionOnBranch);
+				//midNode->expansionFactor *= 0.5f;
+			}
 
 			midNode->rotationAngle = child->rotationAngle;
 			midNode->animationDirection = child->animationDirection;
@@ -503,7 +515,11 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 			child->expansionAmount = 1.f;
 			child->growth = glm::mat4(1.f);
 			child->growthAmount = 1.f;
-			if (bidirectionalGrowth) child->S = positionalInformaionFunction(child->positionOnBranch);
+			if (bidirectionalGrowth) {
+				child->S = positionalInformationFunction(child->positionOnBranch);
+				child->expansionFactor = positionalInformationFunction(child->positionOnBranch);
+				//child->expansionFactor *= 0.5f;
+			}
 
 			midNode->addChild(child);
 			midNode->parent = node;
@@ -1501,8 +1517,8 @@ std::vector<glm::vec3> SceneNode::generateInitialContourControlPoints(SceneNode*
 	// root
 	glm::vec3 rootPos = glm::vec3(root->globalTransformation[3]);
 
-	glm::vec3 leftOffset = rootPos - glm::vec3(0.15f, 0.25f, 0.0f);
-	glm::vec3 rightOffset = rootPos + glm::vec3(0.15f, -0.25f, 0.0f);
+	glm::vec3 leftOffset = rootPos - glm::vec3(0.1f, 0.25f, 0.0f);
+	glm::vec3 rightOffset = rootPos + glm::vec3(0.1f, -0.25f, 0.0f);
 
 	controlPoints.push_back(leftOffset);
 
@@ -1935,11 +1951,10 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float d
 		bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
 
 		//// growth (translation) in the normal direction
-		//if (bindings[i].childNode->children.empty()) {
+		//if (true) {
 		//	bindings[i].contourPoint.x += deltaTime * bindings[i].normalFactor * bindings[i].normalDirection.x;
 		//	bindings[i].contourPoint.y += deltaTime * bindings[i].normalFactor * bindings[i].normalDirection.y;
 		//}
-
 
 		// transformation applied in local coordinate frame
 		//binding.contourPoint = glm::translate(bindingPosition) * animatedPosMat * binding.previousAnimateInverse * glm::translate(-bindingPosition) * glm::vec4(binding.contourPoint, 1.0f);
@@ -1947,7 +1962,7 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float d
 		bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
 		//binding.closestPoint = calculateClosestPoint(binding);
 
-		// update t value to reflect the non-linear g
+		// update t value to reflect the non-linear growth
 		bindings[i].t = (glm::length(bindings[i].closestPoint - glm::vec3(bindings[i].parentNode->globalTransformation[3])) / glm::length(bindings[i].childNode->globalTransformation[3] - bindings[i].parentNode->globalTransformation[3]));
 
 	}

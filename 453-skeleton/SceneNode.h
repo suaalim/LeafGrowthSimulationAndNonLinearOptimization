@@ -126,7 +126,7 @@ private:
 	float animationDirection = 1.0f; // left and right branch rotation (+angle, -angle)
 	float animationAngle = 0.0f;
 	float animationTime = 0.0f;
-	float animationDuration = 1.f; // how long the animation lasts
+	float animationDuration = 2.5f; // how long the animation lasts
 	float rotationAngle = 0.f;
 	float animationScaling = 1.0f;
 	float S = 1.f;

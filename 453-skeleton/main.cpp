@@ -478,7 +478,7 @@ int main() {
 		}
 		
 		// split branch
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !sPressed) 
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)  //  && !sPressed to only execute once per press 
 		{
 			sPressed = true;
 			if (root->divideBranch(root, .1f, 2.f, bidirectionalGrowth)) {
@@ -492,8 +492,8 @@ int main() {
 				//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 				//branchingStructure.clear();
 				//accumulateBranchingStructure(root, branchingStructure);
-				root->printStructure(root);
-				printf("--------------------\n");
+				//root->printStructure(root);
+				//printf("--------------------\n");
 
 				//for (int i = 0; i < bindings.size(); i++) {
 				//	printMat4(bindings[i].childNode->globalTransformation);
