@@ -320,13 +320,13 @@ void SceneNode::animate(float deltaTime) {
 	else animationScaling = (1 + deltaTime * (S*0.5f + parent->S*0.5f)) * animationScaling;  // average child and parent because this is branch scaling
 	animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling, animationScaling, 1.f));
 
-	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor * 2.5f) * expansionAmount;        // expansionFactor controls expansion
+	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor) * expansionAmount;        // expansionFactor controls expansion
 	//else expansionAmount = (1 + deltaTime * (expansionFactor + parent->expansionFactor) / 2.0) * expansionAmount;
-	else expansionAmount = (1 + deltaTime * expansionFactor * 2.5f) * expansionAmount;
+	else expansionAmount = (1 + deltaTime * expansionFactor) * expansionAmount;
 	expansion = glm::scale(glm::mat4(1.0f), glm::vec3(expansionAmount, 1.f, 1.f));  // horizontal expansion/expansion in the direction of binding
 
-	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor ) * growthAmount;       
-	else growthAmount = (1 + deltaTime * growthFactor ) * growthAmount;
+	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor) * growthAmount;       
+	else growthAmount = (1 + deltaTime * growthFactor) * growthAmount;
 	growth = glm::scale(glm::mat4(1.0f), glm::vec3(1.f, growthAmount, 1.f));
 
 	for (SceneNode* child : children) {
@@ -381,7 +381,7 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	//temp3[3][1] = 0;
 	//temp3[3][2] = 0;
 
-	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation * expansion * growth;
+	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation * expansion;
 	globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation;
 	//globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling *  localTranslation;
 	////we don't want scaling to affect the child
@@ -430,21 +430,21 @@ void SceneNode::printStructure(SceneNode* node) {
 
 // positional information function to be used to calculate growth rate based on branch position
 // use for bidirectional growth gradient
-float positionalInformationFunction(float positionOnBranch) {  
+float positionalInformationFunctionLinear(float positionOnBranch) {
 	float info;
 	// piecewise function
-	if (positionOnBranch >= 0 && positionOnBranch <= 0.4f) info = (0.7f/0.4f) * positionOnBranch;
-	else info = -((0.7f/0.6f) * positionOnBranch) + (0.7f / 0.6f);
+	if (positionOnBranch >= 0 && positionOnBranch <= 0.5f) info = (2.f) * positionOnBranch;
+	else info = -((2.f) * positionOnBranch) + (2.f);
 	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
 }
 
-//float positionalInformaionFunction(float positionOnBranch) {
-//	float info;
-//	// piecewise function
-//	if (positionOnBranch >= 0 && positionOnBranch <= 0.5f) info = 2.f * positionOnBranch;
-//	else info = -((2.f) * positionOnBranch) + (2.f);
-//	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
-//}
+float positionalInformationFunctionSigmoid(float positionOnBranch) {
+	float info;
+	// piecewise function
+	if (positionOnBranch >= 0 && positionOnBranch <= 0.4f) info = (-125.f / 4.f) * pow(positionOnBranch, 3) + (75.f / 4.f) * pow(positionOnBranch, 2);
+	else info = ((125.f / 4.f) * pow(positionOnBranch, 3)) - ((225.f / 4.f) * pow(positionOnBranch, 2)) + (30 * positionOnBranch) - 4;
+	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
+}
 
 float inversePositionalInformationFunction(float info) {
 	float positionOnBranch;
@@ -458,7 +458,7 @@ float inversePositionalInformationFunction(float info) {
 		// Handle out-of-range input if needed
 		positionOnBranch = -1.0f; // or some error value
 	}
-	return positionOnBranch;   
+	return positionOnBranch;
 }
 
 
@@ -476,21 +476,21 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 
 		if (distance > threshold) {
 			divided = true;
-			
+
 			SceneNode* midNode = new SceneNode();
-			glm::vec3 midPos = glm::mix(parentPos, childPos, 1/division);
+			glm::vec3 midPos = glm::mix(parentPos, childPos, 1 / division);
 
 			// midNode inherits from child
 			midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
 			midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - parentPos)));
 			midNode->localRotation = child->localRotation;
-			midNode->S = glm::mix(child->parent->S,child->S,1/division);
-			midNode->expansionFactor = glm::mix(child->parent->expansionFactor, child->expansionFactor, 1/division);
+			midNode->S = glm::mix(child->parent->S, child->S, 1 / division);
+			midNode->expansionFactor = glm::mix(child->parent->expansionFactor, child->expansionFactor, 1 / division);
 			midNode->growthFactor = glm::mix(child->parent->growthFactor, child->growthFactor, 1 / division);
 			midNode->positionOnBranch = glm::mix(child->parent->positionOnBranch, child->positionOnBranch, 1 / division);
 			if (bidirectionalGrowth) {
-				midNode->S = positionalInformationFunction(midNode->positionOnBranch);
-				midNode->expansionFactor = positionalInformationFunction(midNode->positionOnBranch);
+				midNode->S = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
+				midNode->expansionFactor = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
 				//midNode->expansionFactor *= 0.5f;
 			}
 
@@ -516,8 +516,8 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 			child->growth = glm::mat4(1.f);
 			child->growthAmount = 1.f;
 			if (bidirectionalGrowth) {
-				child->S = positionalInformationFunction(child->positionOnBranch);
-				child->expansionFactor = positionalInformationFunction(child->positionOnBranch);
+				child->S = positionalInformationFunctionSigmoid(child->positionOnBranch);
+				child->expansionFactor = positionalInformationFunctionSigmoid(child->positionOnBranch);
 				//child->expansionFactor *= 0.5f;
 			}
 
