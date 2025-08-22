@@ -320,9 +320,9 @@ void SceneNode::animate(float deltaTime) {
 	else animationScaling = (1 + deltaTime * (S * 0.5f + parent->S * 0.5f)) * animationScaling;  // average child and parent because this is branch scaling
 	animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling, animationScaling, 1.f));
 
-	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor * 1.5f) * expansionAmount;        // expansionFactor controls expansion
+	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor) * expansionAmount;        // expansionFactor controls expansion
 	//else expansionAmount = (1 + deltaTime * (expansionFactor + parent->expansionFactor) / 2.0) * expansionAmount;
-	else expansionAmount = (1 + deltaTime * expansionFactor * 1.5f) * expansionAmount;
+	else expansionAmount = (1 + deltaTime * expansionFactor) * expansionAmount;
 	expansion = glm::scale(glm::mat4(1.0f), glm::vec3(expansionAmount, 1.f, 1.f));  // horizontal expansion/expansion in the direction of binding
 
 	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor) * growthAmount;
@@ -430,21 +430,21 @@ void SceneNode::printStructure(SceneNode* node) {
 
 // positional information function to be used to calculate growth rate based on branch position
 // use for bidirectional growth gradient
-float positionalInformationFunction(float positionOnBranch) {
+float positionalInformationFunctionLinear(float positionOnBranch) {
 	float info;
 	// piecewise function
-	if (positionOnBranch >= 0 && positionOnBranch <= 0.4f) info = (0.7f / 0.4f) * positionOnBranch;
-	else info = -((0.7f / 0.6f) * positionOnBranch) + (0.7f / 0.6f);
+	if (positionOnBranch >= 0 && positionOnBranch <= 0.5f) info = (2.f) * positionOnBranch;
+	else info = -((2.f) * positionOnBranch) + (2.f);
 	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
 }
 
-//float positionalInformaionFunction(float positionOnBranch) {
-//	float info;
-//	// piecewise function
-//	if (positionOnBranch >= 0 && positionOnBranch <= 0.5f) info = 2.f * positionOnBranch;
-//	else info = -((2.f) * positionOnBranch) + (2.f);
-//	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
-//}
+float positionalInformationFunctionSigmoid(float positionOnBranch) {
+	float info;
+	// piecewise function
+	if (positionOnBranch >= 0 && positionOnBranch <= 0.4f) info = (-125.f/4.f) * pow(positionOnBranch, 3) + (75.f/4.f) * pow(positionOnBranch, 2);
+	else info = ((125.f/4.f) * pow(positionOnBranch, 3)) - ((225.f/4.f) * pow(positionOnBranch, 2)) + (30 * positionOnBranch) - 4;
+	return info;  // position on branch must be [0, 1], if want to increase S rate, multiply directly by scalar
+}
 
 float inversePositionalInformationFunction(float info) {
 	float positionOnBranch;
@@ -489,9 +489,9 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 			midNode->growthFactor = glm::mix(child->parent->growthFactor, child->growthFactor, 1 / division);
 			midNode->positionOnBranch = glm::mix(child->parent->positionOnBranch, child->positionOnBranch, 1 / division);
 			if (bidirectionalGrowth) {
-				midNode->S = positionalInformationFunction(midNode->positionOnBranch);
-				midNode->expansionFactor = positionalInformationFunction(midNode->positionOnBranch);
-				midNode->expansionFactor *= 0.5f;
+				midNode->S = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
+				midNode->expansionFactor = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
+				//midNode->expansionFactor *= 0.5f;
 			}
 
 			midNode->rotationAngle = child->rotationAngle;
@@ -516,9 +516,9 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 			child->growth = glm::mat4(1.f);
 			child->growthAmount = 1.f;
 			if (bidirectionalGrowth) {
-				child->S = positionalInformationFunction(child->positionOnBranch);
-				child->expansionFactor = positionalInformationFunction(child->positionOnBranch);
-				child->expansionFactor *= 0.5f;
+				child->S = positionalInformationFunctionSigmoid(child->positionOnBranch);
+				child->expansionFactor = positionalInformationFunctionSigmoid(child->positionOnBranch);
+				//child->expansionFactor *= 0.5f;
 			}
 
 			midNode->addChild(child);
@@ -2031,7 +2031,7 @@ void SceneNode::calculateNormalDirection(std::vector<ContourBinding>& bindings) 
 // relative transformation between frame (global frame)
 void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime) {
 	// petiole: limit the growth for the first and last few points
-	for (int i = 0; i < bindings.size(); i++) {
+	for (int i = 5; i < bindings.size() - 5; i++) {
 		glm::mat4 animatedPosMat = calculateAnimationMatrix(bindings[i]);
 		glm::vec3 bindingPosition = bindings[i].closestPoint;   // translating by -bindingPosition moves it back to local space
 		bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);

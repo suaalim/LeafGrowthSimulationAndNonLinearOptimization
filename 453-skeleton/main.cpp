@@ -414,7 +414,7 @@ int main() {
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)  //  && !sPressed to only execute once per press 
 		{
 			sPressed = true;
-			if (root->divideBranch(root, .1f, 2.5f, bidirectionalGrowth)) {
+			if (root->divideBranch(root, .01f, 2.5f, bidirectionalGrowth = true)) {
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 				//pairs.clear();
 				//root->labelBranches(root, pairs, index);
