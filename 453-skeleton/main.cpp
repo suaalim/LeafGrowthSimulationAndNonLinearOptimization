@@ -400,7 +400,8 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 	glEnable(GL_DEPTH_TEST);
-	GLuint shader = ShaderLoader("D:/Program/C++/NewPhytologist2017/articulated-structure/articulated-structure/assets/shaders/test.vert", "D:/Program/C++/NewPhytologist2017/articulated-structure/articulated-structure/assets/shaders/test.frag").ID;
+	GLuint shader = ShaderLoader("D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.vert",
+		"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.frag").ID;
 
 	// create and bind VAO and VBO
 	setupBuffers();
@@ -409,7 +410,7 @@ int main() {
 	std::vector<CPU_Geometry> branchUpdates;
 	std::vector<SceneNode*> branchingStructure;
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:/Code/C++/NewPhytologist2017/plyFile/transform_matrices7.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
 	
@@ -447,7 +448,7 @@ int main() {
 	bool tKeyPressedLastFrame = false;
 	int branchCounter = 0;
 	bool screenshotRequested = false;
-	bool bidirectionalGrowth = false;
+	bool bidirectionalGrowth = true;
 
 	while (!glfwWindowShouldClose(window)) {
 		bool g_pressed = false;
