@@ -90,8 +90,8 @@ public:
 		//fov -= yOffset;
 		//if (fov < 1.0f) fov = 1.0f;
 		//if (fov > 90.0f) fov = 90.0f;
-		
-		float zoomSpeed = 0.1f; 
+
+		float zoomSpeed = 0.1f;
 		float zoomAmount = yOffset * zoomSpeed;
 
 		processOrthoZoom(zoomAmount);
@@ -247,6 +247,8 @@ void fillMappingGeometry(
 	}
 }
 
+int counter = 0;
+
 struct SharedState {
 	SceneNode* rootNode = nullptr;
 	glm::mat4 viewMatrix;
@@ -325,16 +327,16 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 
 	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
 		if (key == GLFW_KEY_UP) {
-			camera->moveCamera(glm::vec3(0.0f, moveSpeed, 0.0f)); 
+			camera->moveCamera(glm::vec3(0.0f, moveSpeed, 0.0f));
 		}
 		else if (key == GLFW_KEY_DOWN) {
-			camera->moveCamera(glm::vec3(0.0f, -moveSpeed, 0.0f)); 
+			camera->moveCamera(glm::vec3(0.0f, -moveSpeed, 0.0f));
 		}
 		else if (key == GLFW_KEY_LEFT) {
-			camera->moveCamera(glm::vec3(-moveSpeed, 0.0f, 0.0f)); 
+			camera->moveCamera(glm::vec3(-moveSpeed, 0.0f, 0.0f));
 		}
 		else if (key == GLFW_KEY_RIGHT) {
-			camera->moveCamera(glm::vec3(moveSpeed, 0.0f, 0.0f)); 
+			camera->moveCamera(glm::vec3(moveSpeed, 0.0f, 0.0f));
 		}
 	}
 }
@@ -400,7 +402,11 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 	glEnable(GL_DEPTH_TEST);
-	GLuint shader = ShaderLoader("D:/Program/C++/NewPhytologist2017/articulated-structure/articulated-structure/assets/shaders/test.vert", "D:/Program/C++/NewPhytologist2017/articulated-structure/articulated-structure/assets/shaders/test.frag").ID;
+	GLuint shader = ShaderLoader(
+		"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.vert",
+		"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.frag"
+	).ID;
+
 
 	// create and bind VAO and VBO
 	setupBuffers();
@@ -409,10 +415,10 @@ int main() {
 	std::vector<CPU_Geometry> branchUpdates;
 	std::vector<SceneNode*> branchingStructure;
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:\\Program\\C++\\NewPhytologist2017\\articulated-structure\\plyFile\\transform_matrices7.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:/Code/C++/NewPhytologist2017/plyFile/transform_matrices7.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
-	
+
 	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 
 	// contour initialization
@@ -476,12 +482,12 @@ int main() {
 			g_pressed = true;
 			root->animate(deltaTime);
 		}
-		
+
 		// split branch
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)  //  && !sPressed to only execute once per press 
 		{
 			sPressed = true;
-			if (root->divideBranch(root, .01f, 2.f, bidirectionalGrowth = true)) {
+			if (root->divideBranch(root, .01f, 2.f, bidirectionalGrowth = false)) {
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, true);
 				//pairs.clear();
 				//root->labelBranches(root, pairs, index);
@@ -492,8 +498,8 @@ int main() {
 				//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 				//branchingStructure.clear();
 				//accumulateBranchingStructure(root, branchingStructure);
-				root->printStructure(root);
-				printf("--------------------\n");
+				//root->printStructure(root);
+				//printf("--------------------\n");
 
 				//for (int i = 0; i < bindings.size(); i++) {
 				//	printMat4(bindings[i].childNode->globalTransformation);
@@ -540,7 +546,7 @@ int main() {
 				// clicked on a point
 				if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
 					ContourBinding* c = &bindings[i];
-					// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch)
+					// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch) -> might not need?
 					if (!(c->childNode->children.empty())) {
 						root->divideBranchMinDistance(root, c);
 						splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
@@ -557,7 +563,7 @@ int main() {
 
 						resetBool(root);
 					}
-					break; 
+					break;
 				}
 			}
 			clickedToAdd = false;
@@ -567,23 +573,23 @@ int main() {
 		int currentCKeyState = glfwGetKey(window, GLFW_KEY_A); // only execute once per frame
 		if (currentCKeyState == GLFW_PRESS && !aKeyPressedLastFrame)
 		{
-			float vs[] = {0.994907, 1.237082};
+			float vs[] = { 0.994907, 1.237082 };
 			std::random_device rd;
 			std::mt19937 gen(rd()); // random number
 			float mainAxisLength = computeMainAxisLength(root);
-			std::uniform_real_distribution<float> dist(0.3f, computeMainAxisLength(root));    
+			std::uniform_real_distribution<float> dist(0.3f, computeMainAxisLength(root));
 			//ContourBinding* c = root->findContourPointToAddBranch(dist(gen), root, bindings);
 
 			//ContourBinding* c = root->findContourPointToAddBranch(vs[branchCounter], root, bindings);
 			branchCounter = (branchCounter + 1) % 2;
-			
+
 			ContourBinding* c = &bindings[98];
 			//ContourBinding* c = &bindings[int(bindings.size()/2 * 1.3)];
 			//ContourBinding* c = &bindings[11];
 			//ContourBinding* c = &bindings[5];
 			//ContourBinding* c = &bindings[3];
 			//ContourBinding* c = &bindings[14];
-			
+
 			// don't want to add a new branch relative to the contour point that is binded to leaf node (don't want a vertical branch)
 			if (!(c->childNode->children.empty())) {
 				// storing copy of original branching structure
@@ -708,7 +714,7 @@ int main() {
 		for (const auto& tup : pairs) {
 			p.emplace_back(std::get<0>(tup), std::get<1>(tup));
 		}
-		root->interpolateBranchTransforms(p, branchUpdates);
+		//root->interpolateBranchTransforms(p, branchUpdates);
 
 		// add contour point and bind
 		branchingStructure.clear();
