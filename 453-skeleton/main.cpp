@@ -773,11 +773,69 @@ int main() {
 		draw(GL_LINES, mappingLines.verts.size(), mappingLines.indices.size());
 
 		// Screenshot handling (AFTER rendering, BEFORE buffer swap)
+		// saving contour and branch information
 		if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
-			int width, height;
-			glfwGetFramebufferSize(window, &width, &height);
-			saveScreenshot(width, height);
-			screenshotRequested = false;
+			////taking screenshot
+			//int width, height;
+			//glfwGetFramebufferSize(window, &width, &height);
+			//saveScreenshot(width, height);
+			//screenshotRequested = false;
+
+			auto folderPath = "geometry_data";
+
+			// Create directory if it doesn't exist
+			if (!std::filesystem::exists(folderPath)) {
+				std::filesystem::create_directory(folderPath);
+			}
+
+			// Timestamped filename
+			auto now = std::time(nullptr);
+			auto tm = *std::localtime(&now);
+
+			std::ostringstream oss;
+			oss << folderPath;
+			oss << "/geometry_";
+			oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+			oss << ".txt";
+
+			std::string filename = oss.str();
+
+			// Open file
+			std::ofstream outFile(filename);
+
+			if (!outFile.is_open()) {
+				std::cerr << "Failed to open file for writing.\n";
+			}
+			else {
+
+				// Save contour points
+				outFile << "=== Contour Points ===\n";
+
+				for (int i = 0; i < bindings.size(); i++) {
+					glm::vec3 p = bindings[i].contourPoint;
+
+					outFile << "Point " << i << ": "
+						<< p.x << " "
+						<< p.y << " "
+						<< p.z << "\n";
+				}
+
+				// Save branch vertices
+				outFile << "\n=== Branch Vertices ===\n";
+
+				for (int i = 0; i < branchGeometry.verts.size(); i++) {
+					glm::vec3 v = branchGeometry.verts[i];
+
+					outFile << "Vertex " << i << ": "
+						<< v.x << " "
+						<< v.y << " "
+						<< v.z << "\n";
+				}
+
+				outFile.close();
+
+				std::cout << "Saved geometry data: " << filename << std::endl;
+			}
 		}
 
 		glfwSwapBuffers(window);

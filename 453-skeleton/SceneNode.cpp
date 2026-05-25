@@ -506,7 +506,6 @@ bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, b
 
 			SceneNode* midNode = new SceneNode();
 			glm::vec3 midPos = glm::mix(parentPos, childPos, 1 / division);
-
 			// midNode inherits from child
 			midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
 			midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - parentPos)));
@@ -1034,10 +1033,11 @@ SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour) {
 		// because the value will be small with subdivision
 		newNode->S = node->S * 2;   // controls how fast or slow this new node will grow, needs to be extremely big for the new branch to grow fast enough cuz node->S is too small
 		newNode->expansionFactor = node->expansionFactor * 1;
-		newNode->growthFactor = node->growthFactor * 2; // same reasoning as S
+		newNode->growthFactor = node->growthFactor * 10; // same reasoning as S
 		newNode->positionOnBranch = 1.f;
 		newNode->animationDirection = node->animationDirection;
-
+		// for S and growthFactor, since newNode's parameter is inherited from node's (which is way less than 1), in order for newNode to grow fast enough, it has to be multiplied by at least 10 (to make it bigger than 1)
+		// also has to do with the fact that the newly added branch is way shorter compared to the main axis
 		newNode->animateScaling = node->animateScaling;
 		newNode->animateTranslation = node->animateTranslation;
 		newNode->animateRotation = node->animateRotation;
