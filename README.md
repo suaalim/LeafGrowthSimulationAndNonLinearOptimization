@@ -1,5 +1,3 @@
-This repository mirrors the same project available at:
-https://github.com/suaalim/LeafGrowthSimulationAndNonLinearOptimization
 ## Latest code is in the branch: HausdorffDistance. Once you clone and build the project, please checkout to HausdorffDistance branch to run the code.
 
 ## Leaf Growth Simulation and Non-Linear Optimization
@@ -7,7 +5,7 @@ This project is an OpenGL based C++ application for simulating leaf growth that 
 
 
 ## Documentation
-👉 To view the project documentation & results, go to (2025Research/Research report.pdf)
+👉 To view the project documentation & results, go to (LeafGrowthSimulationAndNonLinearOptimization/Research report.pdf)
 
 
 ## Setup Instructions 📦 
@@ -24,7 +22,7 @@ Desktop development with C++
 
 2. Clone the Repository
 
-git clone https://github.com/suaalim/2025Research.git
+git clone https://github.com/suaalim/LeafGrowthSimulationAndNonLinearOptimization.git
 
 
 3. Open the Project in Visual Studio
@@ -35,7 +33,7 @@ Go to:
 
 File → Open → Folder
 
-Select the folder you cloned: 2025Research (This folder contains the CMakeLists.txt file, which is VERY important)
+Select the folder you cloned: LeafGrowthSimulationAndNonLinearOptimization (This folder contains the CMakeLists.txt file, which is VERY important)
 
 
 4. Configure the Project
@@ -73,7 +71,7 @@ T → Subdivide branch and add a new branch
 
 P → Save leaf structure data
 
-	Saved output location: ...\working directory\2025Research\Code\out\build\x64-Debug\geometry_data
+	Saved output location: ...\working directory\LeafGrowthSimulationAndNonLinearOptimization\Code\out\build\x64-Debug\geometry_data
 	
 Mouse Controls
 
@@ -98,14 +96,14 @@ Update these lines:
 
 Line 406
 
-..workingdirectory/2025Research/Code/assets/shaders/test.vert
+..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/Code/assets/shaders/test.vert
 
 Line 407
 
-..workingdirectory/2025Research/Code/assets/shaders/test.vert
+..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/Code/assets/shaders/test.vert
 
 Line 418
 
-..workingdirectory/2025Research/Code/Transform matrices/choose transform_matrices file from the folder
+..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/Code/Transform matrices/choose transform_matrices file from the folder
 
 Make sure the working directory matches your local repository path.
