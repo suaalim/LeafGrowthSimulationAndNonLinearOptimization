@@ -17,7 +17,7 @@
 #include <sstream>
 #include <filesystem> 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb/stb_image_write.h"
+#include "stb/stb_image_write.h" 
 
 // camera class for viewing pipeline
 class Camera {
@@ -415,7 +415,7 @@ int main() {
 	std::vector<CPU_Geometry> branchUpdates;
 	std::vector<SceneNode*> branchingStructure;
 
-	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:/Code/C++/NewPhytologist2017/plyFile/transform_matrices7.txt");
+	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> edgeTransformations = SceneNode::extractEdgeTransforms("D:/Code/C++/NewPhytologist2017/plyFile/transform_matrices6.txt");
 	std::vector<std::vector<int>> parentChildPairs = SceneNode::buildChildrenList(edgeTransformations);
 	SceneNode* root = SceneNode::createBranchingStructure(0, parentChildPairs, edgeTransformations);
 
@@ -781,6 +781,18 @@ int main() {
 			//saveScreenshot(width, height);
 			//screenshotRequested = false;
 
+			// Helper lambda: find which vertex index corresponds to a node's world position
+			auto findVertexIndex = [&](SceneNode* node) -> int {
+				glm::vec3 pos = glm::vec3(node->globalTransformation[3]);
+				for (int i = 0; i < branchGeometry.verts.size(); i++) {
+					if (glm::distance(branchGeometry.verts[i], pos) < 1e-4f)
+						return i;
+				}
+				return -1; // not found
+				};
+
+			newPairs.clear();
+			root->getBranches(root, newPairs);
 			auto folderPath = "geometry_data";
 
 			// Create directory if it doesn't exist
@@ -822,14 +834,19 @@ int main() {
 
 				// Save branch vertices
 				outFile << "\n=== Branch Vertices ===\n";
-
 				for (int i = 0; i < branchGeometry.verts.size(); i++) {
 					glm::vec3 v = branchGeometry.verts[i];
-
 					outFile << "Vertex " << i << ": "
-						<< v.x << " "
-						<< v.y << " "
-						<< v.z << "\n";
+						<< v.x << " " << v.y << " " << v.z << "\n";
+				}
+
+				// Save edges using getBranches result -> will break if two nodes are the same points
+				outFile << "\n=== Edges (parent -> child) ===\n";
+				for (auto& [parent, child] : newPairs) {
+					int parentIdx = findVertexIndex(parent);
+					int childIdx = findVertexIndex(child);
+					if (parentIdx != -1 && childIdx != -1)
+						outFile << parentIdx << " -> " << childIdx << "\n";
 				}
 
 				outFile.close();
