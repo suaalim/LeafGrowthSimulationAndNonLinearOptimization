@@ -7,7 +7,7 @@ This project is an OpenGL based C++ application for simulating leaf growth that 
 ## Documentation
 👉 To view the project documentation & results, go to (2025Research/Research report.pdf)
 
-📦 _Setup Instructions_
+## Setup Instructions 📦 
 1. Install Requirements
 Install Visual Studio 2022
 Download the Community Edition
