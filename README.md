@@ -106,6 +106,6 @@ Line 407
 
 Line 418
 
-..workingdirectory/2025Research/plyFile/choose transform_matrices file from the folder
+..workingdirectory/2025Research/Code/Transform matrices/choose transform_matrices file from the folder
 
 Make sure the working directory matches your local repository path.
