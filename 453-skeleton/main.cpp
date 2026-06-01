@@ -15,7 +15,7 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
-#include <filesystem> // C++17 or later
+#include <filesystem> 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 
