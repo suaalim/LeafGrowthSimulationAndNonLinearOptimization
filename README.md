@@ -71,7 +71,7 @@ T → Subdivide branch and add a new branch
 
 P → Save leaf structure data
 
-	Saved output location: ...\working directory\LeafGrowthSimulationAndNonLinearOptimization\Code\out\build\x64-Debug\geometry_data
+	Saved output location: ...\working directory\LeafGrowthSimulationAndNonLinearOptimization\out\build\x64-Debug\geometry_data
 	
 Mouse Controls
 
@@ -96,14 +96,14 @@ Update these lines:
 
 Line 406
 
-..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/Code/assets/shaders/test.vert
+..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/assets/shaders/test.vert
 
 Line 407
 
-..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/Code/assets/shaders/test.vert
+..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/assets/shaders/test.vert
 
 Line 418
 
-..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/Code/Transform matrices/choose transform_matrices file from the folder
+..workingdirectory/LeafGrowthSimulationAndNonLinearOptimization/Transform matrices/choose transform_matrices file from the folder
 
 Make sure the working directory matches your local repository path.
