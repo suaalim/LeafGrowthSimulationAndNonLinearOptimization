@@ -225,7 +225,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 			viewport
 		);
 
-		std::cout << "World position: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
+		//std::cout << "World position: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
 	}
 	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
 		clickedToRemove = true;
@@ -402,14 +402,242 @@ int main() {
 		glUseProgram(shader);
 		glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 
+<<<<<<< Updated upstream
 		// animate growth
 		int state = glfwGetKey(window, GLFW_KEY_G);
 		if (state == GLFW_PRESS)
 		{
 			g_pressed = true;
 			root->animate(deltaTime);
+=======
+			// animate growth
+			sim.handleGKey(deltaTime);
+
+			// split branch
+			sim.handleSKey();
+
+			// merge branch
+			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
+
+			// add branch based on clicking
+			sim.handleAddBranchClick(worldPos, clickedToAdd);
+
+			// need to clear geometry before calling update to draw the new positions
+			sim.updateSimulation(deltaTime);
+			// deltaTime is usually very small, between 4 to 6e-05
+
+			if (sim.g_pressed) {
+				sim.animateRebuild(deltaTime);
+			}
+
+			sim.rebuildDebugGeometry();
+			sim.rebuildContourGeometry();
+
+			glPointSize(5);
+			glLineWidth(2.0f); // Set line width to 2 pixels
+			// Branch
+			updateBuffers(sim.branchGeometry.verts, sim.branchGeometry.cols, sim.branchGeometry.indices);
+			glBindVertexArray(vao);
+			glDrawArrays(GL_POINTS, 0, sim.branchGeometry.verts.size());
+			glDrawElements(GL_LINES, sim.branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
+
+			//// Interpolated branch
+			//for (int i = 0; i < branchUpdates.size(); i++) {
+			//	updateBuffers(branchUpdates[i].verts, branchUpdates[i].cols, branchUpdates[i].indices);
+			//	glDrawArrays(GL_POINTS, 0, branchUpdates[i].verts.size());
+			//	glDrawArrays(GL_LINE_STRIP, 0, branchUpdates[i].verts.size());
+			//}
+
+			// Contour
+			updateBuffers(sim.contourGeometry.verts, sim.contourGeometry.cols, {});
+			glDrawArrays(GL_POINTS, 0, sim.contourGeometry.verts.size());
+			glDrawArrays(GL_LINE_STRIP, 0, sim.contourGeometry.verts.size());
+
+			// Mapping (DEBUGGING PURPOSES)
+			updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
+			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
+			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
+
+			// Screenshot handling (AFTER rendering, BEFORE buffer swap)
+			// saving contour and branch information
+			//if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+			//	////taking screenshot
+			//	//int width, height;
+			//	//glfwGetFramebufferSize(window, &width, &height);
+			//	//saveScreenshot(width, height);
+			//	//screenshotRequested = false;
+
+			//	// Helper lambda: find which vertex index corresponds to a node's world position
+			//	auto findVertexIndex = [&](SceneNode* node) -> int {
+			//		glm::vec3 pos = glm::vec3(node->globalTransformation[3]);
+			//		for (int i = 0; i < branchGeometry.verts.size(); i++) {
+			//			if (glm::distance(branchGeometry.verts[i], pos) < 1e-4f)
+			//				return i;
+			//		}
+			//		return -1; // not found
+			//		};
+
+			//	newPairs.clear();
+			//	root->getBranches(root, newPairs);
+			//	auto folderPath = "geometry_data";
+
+			//	// Create directory if it doesn't exist
+			//	if (!std::filesystem::exists(folderPath)) {
+			//		std::filesystem::create_directory(folderPath);
+			//	}
+
+			//	// Timestamped filename
+			//	auto now = std::time(nullptr);
+			//	auto tm = *std::localtime(&now);
+
+			//	std::ostringstream oss;
+			//	oss << folderPath;
+			//	oss << "/geometry_";
+			//	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+			//	oss << ".txt";
+
+			//	std::string filename = oss.str();
+
+			//	// Open file
+			//	std::ofstream outFile(filename);
+
+			//	if (!outFile.is_open()) {
+			//		std::cerr << "Failed to open file for writing.\n";
+			//	}
+			//	else {
+
+			//		// Save contour points
+			//		outFile << "=== Contour Points ===\n";
+
+			//		for (int i = 0; i < bindings.size(); i++) {
+			//			glm::vec3 p = bindings[i].contourPoint;
+
+			//			outFile << "Point " << i << ": "
+			//				<< p.x << " "
+			//				<< p.y << " "
+			//				<< p.z << "\n";
+			//		}
+
+			//		// Save branch vertices
+			//		outFile << "\n=== Branch Vertices ===\n";
+			//		for (int i = 0; i < branchGeometry.verts.size(); i++) {
+			//			glm::vec3 v = branchGeometry.verts[i];
+			//			outFile << "Vertex " << i << ": "
+			//				<< v.x << " " << v.y << " " << v.z << "\n";
+			//		}
+
+			//		// Save edges using getBranches result -> will break if two nodes are the same points
+			//		outFile << "\n=== Edges (parent -> child) ===\n";
+			//		for (auto& [parent, child] : newPairs) {
+			//			int parentIdx = findVertexIndex(parent);
+			//			int childIdx = findVertexIndex(child);
+			//			if (parentIdx != -1 && childIdx != -1)
+			//				outFile << parentIdx << " -> " << childIdx << "\n";
+			//		}
+
+			//		outFile.close();
+
+			//		std::cout << "Saved geometry data: " << filename << std::endl;
+			//	}
+			//}
+
+			glfwSwapBuffers(window);
+			glfwPollEvents();
 		}
 
+		glfwTerminate();
+		return 0;
+	}
+	else if (ext == ".toml") {
+		// old behavior
+		glfwInit();
+		GLFWwindow* window = glfwCreateWindow(800, 800, "Leaf Shape", NULL, NULL);
+		glfwMakeContextCurrent(window);
+		gladLoadGL();
+		glfwSetMouseButtonCallback(window, mouseButtonCallback);
+		glfwSetScrollCallback(window, scroll_callback);
+		glfwSetKeyCallback(window, keyCallback);
+		glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+		glEnable(GL_DEPTH_TEST);
+		GLuint shader = ShaderLoader(
+			"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.vert",
+			"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.frag"
+		).ID;
+		setupBuffers();
+		Simulation sim;
+		sim.init(filePath, isTxt);
+		float lastTime = glfwGetTime();
+		bool sPressed = false;
+		bool aKeyPressedLastFrame = false;
+		bool tKeyPressedLastFrame = false;
+		int branchCounter = 0;
+		bool screenshotRequested = false;
+		bool bidirectionalGrowth = false;
+
+		//Simulation sim;
+		//sim.init(filePath, isTxt);
+
+		//auto startTime = std::chrono::high_resolution_clock::now();
+		//auto lastTime = startTime;
+
+		//const float maxDuration = 0.1f; // seconds
+		//float accumulatedTime = 0.0f;
+		//while (accumulatedTime < maxDuration) {
+		float targetTime = 0.3f;      // seconds
+		float elapsedTime = 0.0f;
+		float growthSinceLastSubdivision = 0.0f;
+		while (elapsedTime < targetTime) {
+			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			int width, height;
+			glfwGetWindowSize(window, &width, &height);
+			float currentTime = glfwGetTime();
+			float deltaTime = (currentTime - lastTime) / 10;
+			lastTime = currentTime;
+			elapsedTime += deltaTime;
+			// set up and update camera
+			glm::mat4 view = camera->getViewMatrix();
+			glm::mat4 proj = camera->getOrthoMatrix((float)width / (float)height);
+			glm::mat4 viewProj = proj * view;
+			gSharedState.viewMatrix = view;
+			gSharedState.projMatrix = proj;
+			glUseProgram(shader);
+			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
+
+			//auto currentTime = std::chrono::high_resolution_clock::now();
+			//std::chrono::duration<float> frameElapsed = currentTime - lastTime;
+			//float deltaTime = frameElapsed.count();
+
+			//lastTime = currentTime;
+			sim.stepHeadless(deltaTime, 1.0f);
+			////accumulatedTime += deltaTime;
+
+			glPointSize(5);
+			glLineWidth(2.0f); // Set line width to 2 pixels
+			// Branch
+			updateBuffers(sim.branchGeometry.verts, sim.branchGeometry.cols, sim.branchGeometry.indices);
+			glBindVertexArray(vao);
+			glDrawArrays(GL_POINTS, 0, sim.branchGeometry.verts.size());
+			glDrawElements(GL_LINES, sim.branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
+			updateBuffers(sim.contourGeometry.verts, sim.contourGeometry.cols, {});
+			glDrawArrays(GL_POINTS, 0, sim.contourGeometry.verts.size());
+			glDrawArrays(GL_LINE_STRIP, 0, sim.contourGeometry.verts.size());
+			updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
+			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
+			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
+			glfwSwapBuffers(window);
+			glfwPollEvents();
+>>>>>>> Stashed changes
+		}
+		glfwTerminate();
+		return 0;
+		//}
+		////for (int i = 0; i < sim.contourGeometry.verts.size(); i++) {
+		////	glm::vec3 v = glm::vec3(sim.contourGeometry.verts[i]);
+		////	std::cout << v.x << " " << v.y << " " << v.z << std::endl;
+		////}
+
+<<<<<<< Updated upstream
 		// split branch
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)  //  && !sPressed to only execute once per press 
 		{
@@ -701,6 +929,32 @@ int main() {
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+=======
+		// generate toml file
+		//toml::array verts_array;
+
+		//for (size_t i = 0; i < sim.contourGeometry.verts.size(); i++) {
+		//	glm::vec3 v = glm::vec3(sim.contourGeometry.verts[i]);
+
+		//	toml::table vert;
+		//	vert.insert("x", v.x);
+		//	vert.insert("y", v.y);
+		//	vert.insert("z", v.z);
+
+		//	verts_array.push_back(vert);
+		//}
+
+		//toml::table out;
+		//out.insert("verts", verts_array);
+		//namespace fs = std::filesystem;
+		//fs::create_directories("toml");  
+		//std::ofstream file("toml/verts.toml");
+		//file << out;
+	}
+	else {
+		std::cerr << "Unsupported file type: " << ext << "\n";
+		return -1;
+>>>>>>> Stashed changes
 	}
 
 	glfwTerminate();
