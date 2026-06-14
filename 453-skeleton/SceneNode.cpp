@@ -27,11 +27,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <functional>
-<<<<<<< Updated upstream
-=======
 #include "toml.hpp"
 #include <unordered_set>
->>>>>>> Stashed changes
 
 // helper function to print the matrices for debugging purposes
 void printMat4(const glm::mat4& mat) {
@@ -107,8 +104,6 @@ SceneNode* SceneNode::cloneSceneNode(SceneNode* node, SceneNode* parent, std::un
 	copy->growth = node->growth;
 	copy->growthFactor = node->growthFactor;
 	copy->positionOnBranch = node->positionOnBranch;
-	copy->axisID = node->axisID;
-	copy->branchID = copy->branchID;
 
 	copy->parent = parent;
 
@@ -167,9 +162,6 @@ void SceneNode::removeChild(SceneNode* childToRemove) {
 	}
 }
 
-<<<<<<< Updated upstream
-
-=======
 std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float, int, int>> SceneNode::extractEdgeTransformsToml(const std::string& filename)
 {
 	std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float, int, int>> edges;
@@ -227,7 +219,6 @@ std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, fl
 }
 
 // ------------ txt parser --------------------
->>>>>>> Stashed changes
 glm::mat4 parseMatrix(std::ifstream& in) {
 	glm::mat4 mat(1.0f);
 	for (int i = 0; i < 4; i++) {
@@ -242,11 +233,7 @@ glm::mat4 parseMatrix(std::ifstream& in) {
 }
 
 // extract the local matrices per edge
-<<<<<<< Updated upstream
-std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float>> SceneNode::extractEdgeTransforms(const std::string& filename) {
-=======
 std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float, int, int>> SceneNode::extractEdgeTransformsTxt(const std::string& filename) {
->>>>>>> Stashed changes
 	std::ifstream in(filename);
 	if (!in.is_open()) {
 		std::cerr << "Failed to open file\n";
@@ -441,15 +428,9 @@ void SceneNode::animate(float deltaTime) {
 // to get the final position and draw
 void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry) {
 	// convert rotation quaternion back to matrix form
-<<<<<<< Updated upstream
-	glm::mat4 animateRotationMatrix = glm::toMat4(animateRotation);
-	glm::mat4 localRotationMatrix = glm::toMat4(localRotation);
-
-=======
 	glm::mat4 animateRotationMatrix = glm::toMat4(animateRotation);  // from quaternion to matrix
 	glm::mat4 localRotationMatrix = glm::toMat4(localRotation);      // from quaternion to matrix
 	
->>>>>>> Stashed changes
 	//// with rotation
 	//globalTransformation = parentTransform * animateScaling * animateRotationMatrix * localScaling * localRotationMatrix * localTranslation;
 	////we don't want scaling to affect the child
@@ -490,13 +471,6 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	//temp3[3][1] = 0;
 	//temp3[3][2] = 0;
 
-<<<<<<< Updated upstream
-	marginTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation * expansion;
-	globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling * localTranslation;
-	//globalTransformation = parentTransform * localRotationMatrix * animateScaling * localScaling *  localTranslation;
-	////we don't want scaling to affect the child
-	glm::mat4 temp1 = animateScaling * localScaling * localTranslation;
-=======
 	marginTransformation = parentTransform * localRotationMatrix * growth * animateScaling * localScaling * localTranslation * expansion;   // transformation for the current node is set here
 	//marginTransformation[0][0] = 1.f;
 	//marginTransformation[1][1] = 1.f;
@@ -508,7 +482,6 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	// we don't want parent's scaling to affect the child because all children will be overgrown
 	// scaling gets accumulated and children grow too much
 	glm::mat4 temp1 =  growth * animateScaling * localScaling * localTranslation;
->>>>>>> Stashed changes
 	temp1[0][0] = 1.0;
 	temp1[1][1] = 1.0;
 	temp1[2][2] = 1.0;
@@ -1061,14 +1034,10 @@ ContourBinding* SceneNode::findContourPointToAddBranch(float height, SceneNode* 
 	return finalContour;
 }
 
-<<<<<<< Updated upstream
-ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint) {
-=======
 // finds the best location on any existing branch to attach a new branch
 // visits every parent-child relationship
 // so it is not necessarily on the branch that contourPoint is bound to
 ContourBinding SceneNode::findBestBinding(SceneNode* root, const glm::vec3& contourPoint) {
->>>>>>> Stashed changes
 	ContourBinding bestBinding;
 	float minTotalDistance = std::numeric_limits<float>::max();
 
@@ -1405,19 +1374,6 @@ std::pair<SceneNode*, float> SceneNode::addNewBranch(SceneNode* node, ContourBin
 		// because the value will be small with subdivision
 		newNode->S = node->S * 2;   // controls how fast or slow this new node will grow              
 		newNode->expansionFactor = node->expansionFactor * 1;
-<<<<<<< Updated upstream
-		newNode->growthFactor = node->growthFactor * 1;
-		newNode->positionOnBranch = 1.f;
-		newNode->animationDirection = node->animationDirection;
-
-		//newNode->rotationAngle = 0.f;
-		//newNode->animationAngle = 0.f;
-		//newNode->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-		//newNode->animationScaling = 1.0f;
-		//newNode->animateScaling = node->animateScaling;
-		//newNode->expansion = node->expansion;
-		//newNode->growth = node->growth;
-=======
 		newNode->growthFactor = node->growthFactor * 2; // same reasoning as S
 		newNode->positionOnBranch = 1.f;
 		newNode->animationDirection = node->animationDirection;
@@ -1425,7 +1381,6 @@ std::pair<SceneNode*, float> SceneNode::addNewBranch(SceneNode* node, ContourBin
 		// also has to do with the fact that the newly added branch is way shorter compared to the main axis
 		newNode->axisID = maxID + 1;
 		newNode->branchID = 0;
->>>>>>> Stashed changes
 
 		// Connect to tree
 		newNode->parent = node;
@@ -2531,9 +2486,6 @@ void SceneNode::labelBranches(SceneNode* node, std::vector<std::tuple<SceneNode*
 	}
 }
 
-<<<<<<< Updated upstream
-// interpolate branches 
-=======
 // get maxID
 int SceneNode::getMaxID(SceneNode* node)
 {
@@ -2608,7 +2560,6 @@ std::vector<Branch> SceneNode:: generateAllBranches(SceneNode* root) {
 	return branches;
 }
 // interpolate branches (?)
->>>>>>> Stashed changes
 void SceneNode::interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry) {
 	for (auto& [parent, child] : pair) {
 		glm::mat4 T1 = parent->globalTransformation;
