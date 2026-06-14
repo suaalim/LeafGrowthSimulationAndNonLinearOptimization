@@ -51,7 +51,7 @@ include_directories(SYSTEM thirdparty/fmt-7.0.3/include)
 
 #-------------------------------------------------------------------------------
 include_directories(SYSTEM thirdparty/stb-2.26)
-
+include_directories(SYSTEM thirdparty/tomlplusplus)
 #-------------------------------------------------------------------------------
 # https://github.com/ocornut/imgui/releases/tag/v1.91.8
 add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD=ON)
@@ -62,11 +62,10 @@ set(IMGUI_CPP_FILES
 	thirdparty/imgui-1.91.8/backends/imgui_impl_glfw.cpp    # Window Library comp.
 	thirdparty/imgui-1.91.8/misc/cpp/imgui_stdlib.cpp       # Allow string inputs
 )
-
 #-------------------------------------------------------------------------------
+
 find_package(OpenGL REQUIRED)
 set(LIBRARIES ${LIBRARIES} ${OPENGL_gl_LIBRARY})
-
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 	list(APPEND _453_CMAKE_CXX_FLAGS ${_453_CMAKE_CXX_FLAGS} "-Wall" "-pedantic")
@@ -101,12 +100,13 @@ file(GLOB SOURCES
     453-skeleton/*
 	${IMGUI_CPP_FILES}
 )
+list(REMOVE_ITEM SOURCES "${CMAKE_SOURCE_DIR}/453-skeleton/Bindings.cpp")
 set(INCLUDES ${INCLUDES} src)
 set(APP_NAME "453-skeleton")
 
 add_compile_definitions("ASSET_DIR=${CMAKE_SOURCE_DIR}/assets")
 
-add_executable(${APP_NAME} ${SOURCES}  "453-skeleton/SceneNode.h" "453-skeleton/SceneNode.cpp" "453-skeleton/ShaderLoader.h")
+add_executable(${APP_NAME} ${SOURCES})
 target_include_directories(${APP_NAME} PRIVATE ${INCLUDES})
 target_link_libraries(${APP_NAME} ${LIBRARIES})
 target_compile_definitions(${APP_NAME} PRIVATE ${DEFINITIONS})

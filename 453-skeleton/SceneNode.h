@@ -133,10 +133,9 @@ public:
 	bool divideBranch(SceneNode* node, float threshold, float division, bool bidirectionalGrowth);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
-	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour);
+	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
 	bool splitAtBinding(ContourBinding* pointToBreak);
-	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
 	void rebindContourToNewBranchIndexBased(SceneNode* node, ContourBinding* contour, int division, std::vector<size_t>& toRebind, std::vector<ContourBinding>& bindings);
 	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings, float dist);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
@@ -148,6 +147,7 @@ public:
 	void rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings);
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void printStructure(SceneNode* node);
+	void printTree(SceneNode* node, int depth);
 	void buildBranches(SceneNode* node, std::vector<SceneNode*>& currentPath, std::vector<Branch>& branches);
 	std::vector<Branch> generateAllBranches(SceneNode* root);
 	void updateGrowthRateForMidNode(SceneNode* root);
@@ -156,6 +156,7 @@ public:
 	void incrementBranchIDsOnAxis(SceneNode* node, int axisID);
 	void decrementBranchIDsOnAxis(SceneNode* node, int axisID);
 	void reorganizeChildren(SceneNode* node);
+	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
 	// dfs for tree traversal and assign index for each branch
 	//void buildBranchOrderDFS(
 	//	SceneNode* node,
@@ -189,8 +190,8 @@ public:
 	bool trackOriginalBranch = false;
 	// for rebinding after merging
 	bool toMerge = false;
-	bool divided;
-	bool merged;
+	bool divided = false;
+	bool merged = false;
 
 	SceneNode* parent;
 	std::vector<SceneNode*> children;
@@ -230,3 +231,4 @@ private:
 	int branchID = 0;
 	float distanceFromRoot;
 };
+

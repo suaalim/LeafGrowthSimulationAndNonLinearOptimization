@@ -9,21 +9,44 @@
 #include <iostream>
 #include <glm/gtx/string_cast.hpp>
 
-class CurveEditorCallBack : public CallbackInterface {
-public:
-	CurveEditorCallBack() {}
+void Simulation::accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
+	branchingStructure.push_back(root);
+	for (SceneNode* child : root->children) {
+		accumulateBranchingStructure(child, branchingStructure);
+	}
+}
 
-	virtual void keyCallback(int key, int scancode, int action, int mods) override {
-		Log::info("KeyCallback: key={}, action={}", key, action);
+void Simulation::resetBool(SceneNode* root) {
+	root->addBranch = false;
+	root->midBranch = false;
+	root->trackOriginalBranch = false;
+	root->toMerge = false;
+	//root->divided = false;
+	//root->merged = false;
+	for (SceneNode* child : root->children) {
+		resetBool(child);
+	}
+}
+
+float Simulation::computeMainAxisLength(SceneNode* root) {
+	if (!root || root->children.empty()) return 0.0f;
+
+	float totalLength = 0.0f;
+	SceneNode* current = root;
+
+	while (!current->children.empty()) {
+		// Assume first child is the "main" branch
+		SceneNode* child = current->children[0];
+
+		glm::vec3 parentPos = glm::vec3(current->globalTransformation[3]);
+		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
+		totalLength += glm::length(childPos - parentPos);
+
+		current = child;
 	}
 
-	virtual void mouseButtonCallback(int button, int action, int mods) override {
-		Log::info("MouseButtonCallback: button={}, action={}", button, action);
-
-		if (button == GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS) {
-			wasClicked = true;
-		}
-	}
+	return totalLength;
+}
 
 void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs, std::vector<std::pair<SceneNode*, SceneNode*>>& newPairs, int index, std::vector<SceneNode*>& branchingStructure, bool addContour)
 {
@@ -40,12 +63,21 @@ void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std:
 	//}
 }
 
-	virtual void scrollCallback(double xoffset, double yoffset) override {
-		Log::info("ScrollCallback: xoffset={}, yoffset={}", xoffset, yoffset);
+void Simulation::init(const std::string& path, bool isTxt) {
+	std::string lower = path;
+	std::transform(lower.begin(), lower.end(), lower.begin(),
+		[](unsigned char c) { return std::tolower(c); });
+
+	if (isTxt)
+	{
+		edgeTransforms = SceneNode::extractEdgeTransformsTxt(path);
+	}
+	else
+	{
+		edgeTransforms = SceneNode::extractEdgeTransformsToml(path);
 	}
 
-	virtual void windowSizeCallback(int width, int height) override {
-		Log::info("WindowSizeCallback: width={}, height={}", width, height);
+	auto parentChildPairs = SceneNode::buildChildrenList(edgeTransforms);
 
 	root = SceneNode::createBranchingStructure(
 		0, parentChildPairs, edgeTransforms
@@ -61,7 +93,7 @@ void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std:
 
 	auto contour = root->generateInitialContourControlPoints(root);  // generate contour points associated to root and leaf nodes
 	contour = root->midPoints(contour);
-	
+
 	std::vector<std::tuple<SceneNode*, SceneNode*, int>> pairs;
 	int idx = 0;
 	root->labelBranches(root, pairs, idx);
@@ -74,40 +106,49 @@ void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std:
 	bindings = root->bindInterpolatedContourToBranches(grouped);
 }
 
-	bool wasClicked = false;
-};
+void Simulation::step(float dt) {
+	branchGeometry.verts.clear();
+	branchGeometry.cols.clear();
+	branchGeometry.indices.clear();
 
-// Can swap the callback instead of maintaining a state machine
+	contourGeometry.verts.clear();
+	contourGeometry.cols.clear();
 
-class TurnTable3DViewerCallBack : public CallbackInterface {
-public:
-	TurnTable3DViewerCallBack() {}
+	root->updateBranch(
+		glm::mat4(1.0f),
+		glm::mat4(1.0f),
+		glm::mat4(1.0f),
+		glm::mat4(1.0f),
+		branchGeometry
+	);
 
-	virtual void keyCallback(int key, int scancode, int action, int mods) {}
-	virtual void mouseButtonCallback(int button, int action, int mods) {}
-	virtual void cursorPosCallback(double xpos, double ypos) {}
-	virtual void scrollCallback(double xoffset, double yoffset) {}
-	virtual void windowSizeCallback(int width, int height) {
+	bindings = root->addContourPoints(bindings);
 
-		// The CallbackInterface::windowSizeCallback will call glViewport for us
-		CallbackInterface::windowSizeCallback(width, height);
-	}
-};
+	root->animationPerFrame(bindings, dt);
+	root->calculateNormalDirection(bindings);
 
-class CurveEditorPanelRenderer : public PanelRendererInterface {
-public:
-	CurveEditorPanelRenderer()
-		: inputText(""), buttonClickCount(0), pointSize(5.0f), dragValue(0.0f),
-		inputValue(0.0f), checkboxValue(false), comboSelection(0) {
-		// Initialize options for the combo box
-		options[0] = "Option 1";
-		options[1] = "Option 2";
-		options[2] = "Option 3";
+	// rebuild contour geometry
+	contourGeometry.verts.clear();
+	for (auto& b : bindings)
+		contourGeometry.verts.push_back(b.contourPoint);
+}
 
-		// Initialize color (white by default)
-		colorValue[0] = 1.0f; // R
-		colorValue[1] = 1.0f; // G
-		colorValue[2] = 1.0f; // B
+void Simulation::updateSimulation(float dt)
+{
+	// -----------------------------
+	// BRANCH UPDATE
+	// -----------------------------
+	branchGeometry.verts.clear();
+	branchGeometry.cols.clear();
+	branchGeometry.indices.clear();
+
+	contourGeometry.verts.clear();
+	contourGeometry.cols.clear();
+
+	for (auto& b : branchUpdates) {
+		b.verts.clear();
+		b.cols.clear();
+		b.indices.clear();
 	}
 
 	root->updateBranch(
@@ -119,57 +160,64 @@ public:
 	);
 	root->updateGrowthRateForMidNode(root);
 
-		// Text input
-		ImGui::InputText("Input Text", inputText, IM_ARRAYSIZE(inputText));
+	// -----------------------------
+	// STRUCTURE UPDATE
+	// -----------------------------
+	branchingStructure.clear();
+	accumulateBranchingStructure(root, branchingStructure);
 
-		// Display the input text
-		ImGui::Text("You entered: %s", inputText);
+	bindings = root->addContourPoints(bindings);
+}
 
-		// Button
-		if (ImGui::Button("Click Me")) {
-			buttonClickCount++;
-		}
-		ImGui::Text("Button clicked %d times", buttonClickCount);
+void Simulation::animateRebuild(float dt) {
+	root->animationPerFrame(bindings, dt);
+	root->calculateNormalDirection(bindings);
+}
 
-		// Scrollable block
-		ImGui::TextWrapped("Scrollable Block:");
-		ImGui::BeginChild("ScrollableChild", ImVec2(0, 100),
-			true); // Create a scrollable child
-		for (int i = 0; i < 20; i++) {
-			ImGui::Text("Item %d", i);
-		}
-		ImGui::EndChild();
+void Simulation::rebuildContourGeometry()
+{
+	contourGeometry.verts.clear();
+	contourGeometry.cols.clear();
 
-		// Float slider
-		ImGui::SliderFloat("Float Slider", &pointSize, 5.0f, 100.0f,
-			"Point Size: %.3f");
+	contourGeometry.verts.reserve(bindings.size());
 
-		// Float drag
-		ImGui::DragFloat("Float Drag", &dragValue, 0.1f, 0.0f, 100.0f,
-			"Drag Value: %.3f");
+	for (const auto& b : bindings) {
+		contourGeometry.verts.push_back(b.contourPoint);
+	}
 
-		// Float input
-		ImGui::InputFloat("Float Input", &inputValue, 0.1f, 1.0f,
-			"Input Value: %.3f");
+	for (size_t i = 0; i < contourGeometry.verts.size(); i++) {
+		contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
+	}
+}
 
-		// Checkbox
-		ImGui::Checkbox("Enable Feature", &checkboxValue);
-		ImGui::Text("Feature Enabled: %s", checkboxValue ? "Yes" : "No");
+void Simulation::rebuildDebugGeometry()
+{
+	mappingLines.verts.clear();
+	mappingLines.cols.clear();
+	mappingLines.indices.clear();
 
-		// Combo box
-		ImGui::Combo("Select an Option", &comboSelection, options,
-			IM_ARRAYSIZE(options));
-		ImGui::Text("Selected: %s", options[comboSelection]);
+	for (int i = 0; i < bindings.size(); i++) {
+		int startIdx = mappingLines.verts.size();
 
-		// Displaying current values
-		ImGui::Text("Point Size: %.3f", pointSize);
-		ImGui::Text("Drag Value: %.3f", dragValue);
-		ImGui::Text("Input Value: %.3f", inputValue);
+		mappingLines.verts.push_back(
+			bindings[i].contourPoint - glm::vec3(0, 0, 0.02f)
+		);
+
+		mappingLines.verts.push_back(
+			bindings[i].closestPoint - glm::vec3(0, 0, 0.02f)
+		);
+
+		mappingLines.cols.push_back(glm::vec3(0.8f, 0.6f, 0.8f));
+		mappingLines.cols.push_back(glm::vec3(0.8f, 0.6f, 0.8f));
+
+		mappingLines.indices.push_back(startIdx);
+		mappingLines.indices.push_back(startIdx + 1);
 	}
 }
 
 void Simulation::simulateGrowth(float dt)
-{;
+{
+	;
 	g_pressed = true;
 	root->animate(dt);
 }
@@ -227,23 +275,10 @@ void Simulation::handleSKey()
 {
 	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S);
 
-private:
-	float colorValue[3];    // Array for RGB color values
-	char inputText[256];    // Buffer for input text
-	int buttonClickCount;   // Count button clicks
-	float pointSize;        // Value for float slider
-	float dragValue;        // Value for drag input
-	float inputValue;       // Value for float input
-	bool checkboxValue;     // Value for checkbox
-	int comboSelection;     // Index of selected option in combo box
-	const char* options[3]; // Options for the combo box
-};
+	if (state == GLFW_PRESS) {
 
-CurveControl::CurveControl(Window& window)
-	: mShader("shaders/test.vert", "shaders/test.frag"),
-	mPanel(window.getGLFWwindow()) {
-	mCurveControls = std::make_shared<CurveEditorCallBack>();
-	m3DCameraControls = std::make_shared<TurnTable3DViewerCallBack>();
+		if (!sPressed) {  // ensures "once per press"
+			sPressed = true;
 
 			if (root->divideBranch(root, 0.01f, 2.f, false)) {
 				splitBranch(
@@ -261,15 +296,14 @@ CurveControl::CurveControl(Window& window)
 		}
 	}
 
-	mCurveGeometry = GenerateInitialGeometry();
-	mGPUGeometry.setVerts(mCurveGeometry.verts);
-	mGPUGeometry.setCols(mCurveGeometry.cols);
+	if (state == GLFW_RELEASE) {
+		sPressed = false;
+	}
+}
 
-	// Using two different buffers for the control points and the lines themselves
-	// makes it easier to highlight the selected point
-	mPointGPUGeometry.setVerts(mCurveGeometry.verts);
-	mPointGPUGeometry.setCols(
-		std::vector<glm::vec3>(mCurveGeometry.verts.size(), { 1.f, 0.f, 0.f }));
+void Simulation::handleGKey(float dt)
+{
+	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_G);
 
 	if (state == GLFW_PRESS)
 	{
@@ -307,33 +341,45 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool& mouseC
 
 					float dotProduct = glm::dot(parentBranch, childBranch);
 
-	glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+					float parentLen = glm::length(
+						node->globalTransformation[3] -
+						node->parent->globalTransformation[3]);
 
-	mShader.use();
+					float childLen = glm::length(
+						child->globalTransformation[3] -
+						node->globalTransformation[3]);
 
-	// Render the control points
-	glPointSize(mPanelRenderer->getPointSize());
-	mGPUGeometry.bind();
-	glDrawArrays(GL_POINTS, 0, mCurveGeometry.verts.size());
+					float eps = 1e-5f;
 
-	// Render the curve that connects the control points
-	mPointGPUGeometry.bind();
-	glDrawArrays(GL_LINE_STRIP, 0, mCurveGeometry.verts.size());
+					if (glm::abs(dotProduct - parentLen * childLen) < eps ||
+						glm::abs(dotProduct + parentLen * childLen) < eps)
+					{
+						root->mergeBranch(
+							root,
+							node,
+							node->parent,
+							child
+						);
 
-	// disable sRGB for things like imgui
-	glDisable(GL_FRAMEBUFFER_SRGB);
-	mPanel.render();
-}
+						root->updateBranch(
+							glm::mat4(1.0f),
+							glm::mat4(1.0f),
+							glm::mat4(1.0f),
+							glm::mat4(1.0f),
+							branchGeometry
+						);
 
-void CurveControl::Update() {
-	// Use this function to process logic and update things based on user inputs
-	//Example: generate a new control point
+						root->rebindContourWithMergedBranch(root, bindings);
+						resetBool(root);
 
-	if (mCurveControls->wasClicked) {
-		Log::debug("Insert or select a control point based on the position clicked");
-		mCurveControls->wasClicked = false;
+						return; // important: stop after merge
+					}
+				}
+			}
+		}
 	}
+
+	mouseClicked = false;
 }
 
 void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClicked)
@@ -351,23 +397,32 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			std::cout << "contour point not clicked" << std::endl;
 		}
 		// don't want to add a new branch relative to the contour point that is bound to leaf node (don't want a vertical branch) -> might not need?
-		else if (!(c->childNode->children.empty())) {  
+		else if (!(c->childNode->children.empty())) {
 			if (root->divideBranchMinDistance(root, c))
+			/*ContourBinding pointToBreak = root->findBestBinding(root, c->contourPoint);
+			if (root->splitAtBinding(&pointToBreak))*/
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 			// add new branch
-			SceneNode* newNode = root->addNewBranch(root, c);
+			SceneNode* newNode = root->addNewBranch(root, c, maxID);
 			pairs.clear();
 			root->labelBranches(root, pairs, index);
 			newPairs.clear();
 			index = 0;
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 			root->rebindToNewBranch(newNode, c, bindings, 0.1f);
+			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
+			
 			//// add new contour point to split node (dont do this anymore)
 			//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 			//branchingStructure.clear();
 			//accumulateBranchingStructure(root, branchingStructure);
+			
 			// reorganize children (leftmost to rightmost)
-			root->reorganizeChildren(root);
+			//root->reorganizeChildren(root);
+			//pairs.clear();
+			//index = 0;
+			//root->printBranches(root, pairs, index);
+			//root->reorganizeChildren(root);
 			//pairs.clear();
 			//root->labelBranches(root, pairs, index);
 			/*int index = 0;

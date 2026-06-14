@@ -1,23 +1,27 @@
 #pragma once
 
-#include <memory>
+#include <vector>
+#include <tuple>
 
+#include "SceneNode.h"
 #include "Geometry.h"
-#include "Panel.h"
-#include "ShaderProgram.h"
-#include "Window.h"
 
-// forward declare classes that only exist in the cpp file
-class CurveEditorCallBack;
-class TurnTable3DViewerCallBack;
+#ifdef HEADLESS_BUILD
+#define GLFW_CALL(x)   // no-op
+#else
+#define GLFW_CALL(x) x
+#endif
 
-class CurveEditorPanelRenderer;
-
-enum class ViewOption { CurveEditor, SurfaceOfRevolution, TensorSurface };
-
-class CurveControl {
+class Simulation {
 public:
-	explicit CurveControl(Window& window);
+	CPU_Geometry branchGeometry;
+	CPU_Geometry contourGeometry;
+	CPU_Geometry mappingLines;
+
+	bool g_pressed = false;
+
+	void init(const std::string& path, bool isTxt);
+	void step(float dt);
 
 	void stepHeadless(float dt, float length);
 
@@ -63,14 +67,14 @@ private:
 
 	std::vector<std::pair<SceneNode*, SceneNode*>> branchPairs;
 
-	// Geometry
-	CPU_Geometry mCurveGeometry;
-	GPU_Geometry mGPUGeometry;
-	GPU_Geometry mPointGPUGeometry;
+	std::vector<std::tuple<SceneNode*, SceneNode*, int>> pairs;
+	std::vector<std::pair<SceneNode*, SceneNode*>> newPairs;
+	std::vector<SceneNode*> branchingStructure;
 
 	bool sPressed = false;
 	float deltaTime = 0.0f;
 	int index = 0;
 	bool subdivisionDone = false;
+	int maxID = 0;
 
 };
