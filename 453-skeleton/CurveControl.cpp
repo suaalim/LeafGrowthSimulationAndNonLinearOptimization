@@ -418,25 +418,29 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			//accumulateBranchingStructure(root, branchingStructure);
 			
 			// reorganize children (leftmost to rightmost)
-			//root->reorganizeChildren(root);
-			//pairs.clear();
-			//index = 0;
-			//root->printBranches(root, pairs, index);
-			//root->reorganizeChildren(root);
-			//pairs.clear();
-			//root->labelBranches(root, pairs, index);
+			index = 0;
+			pairs.clear();
+			root->labelBranches(root, pairs, index);
 			/*int index = 0;
 			std::vector<TraversalEvent> traversalPath;
 			root->buildBranchOrderDFS(root, traversalPath, index);
 			std::vector<std::pair<int, int>> indices = root->findMisorientedContourIndices(bindings, traversalPath);
 			std::cout << "incorrect indices: " << indices.size() << std::endl;
 			std::cout << "points: " << bindings.size() << std::endl;*/
-
-			//std::vector<std::pair<int, BranchKey>> mismatch = root->findMisorientedContourIndices(root, bindings);
-			//std::cout << "mismatch indices size: " << mismatch.size() << std::endl;
+			std::vector<ContourBinding> firstHalf(
+				bindings.begin(),
+				bindings.begin() + bindings.size() / 2);
+			std::vector<ContourBinding> secondHalf(
+				bindings.rbegin(),
+				std::make_reverse_iterator(bindings.begin() + bindings.size() / 2));
 			//std::cout << "points: " << bindings.size() << std::endl;
-
-
+			root->reorganizeChildrenLeft(root);
+			root->printTree(root, 0);
+			std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, bindings);
+			std::cout << "mismatch indices size left: " << mismatchLeft.size() << std::endl;
+			//root->reorganizeChildrenRight(root);
+			//std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
+			//std::cout << "mismatch indices size right: " << mismatchRight.size() << std::endl;
 			resetBool(root);
 		}
 		mouseClicked = false;

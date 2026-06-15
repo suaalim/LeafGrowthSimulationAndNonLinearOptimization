@@ -153,9 +153,11 @@ public:
 	void updateGrowthRateForMidNode(SceneNode* root);
 	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 	int getMaxID(SceneNode* node);
+	int getAxisID(SceneNode* node);
 	void incrementBranchIDsOnAxis(SceneNode* node, int axisID);
 	void decrementBranchIDsOnAxis(SceneNode* node, int axisID);
-	void reorganizeChildren(SceneNode* node);
+	void reorganizeChildrenLeft(SceneNode* node);
+	void reorganizeChildrenRight(SceneNode* node);
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
 	// dfs for tree traversal and assign index for each branch
 	//void buildBranchOrderDFS(
@@ -198,7 +200,7 @@ public:
 
 	std::unordered_map<int, SceneNode*> nodes;
 	std::unordered_map<int, std::vector<std::pair<int, TransformData>>> edges;
-
+	int axisID = 0;
 private:
 	// T trasformation (rest pose)
 	glm::mat4 localTranslation;
@@ -227,7 +229,6 @@ private:
 	float growthFactor = 1.0f;
 	float positionOnBranch = 1.f; // to calculate positional information
 
-	int axisID = 0;
 	int branchID = 0;
 	float distanceFromRoot;
 };
