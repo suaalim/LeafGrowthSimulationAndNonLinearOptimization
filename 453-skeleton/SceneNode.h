@@ -21,27 +21,6 @@ struct CrossoverRegion
 	int endIndex;
 };
 
-//enum class NodeType
-//{
-//	Root,
-//	Internal,
-//	Branching,
-//	Leaf
-//};
-//
-//struct TraversalEvent
-//{
-//	enum class EventType
-//	{
-//		Enter,
-//		Exit
-//	};
-//
-//	SceneNode* node;
-//	NodeType nodeType;
-//	EventType eventType;
-//};
-//
 struct BranchKey
 {
 	SceneNode* parent;
@@ -119,7 +98,7 @@ public:
 	void deleteSceneGraph(SceneNode* node);
 	void getBranches(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 	void labelBranches(SceneNode* node, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments, int& i);
-	void printBranches(SceneNode* node, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments, int& i);
+	void printBranches(SceneNode* node);
 	static void getLeafNodes(SceneNode* node, std::vector<SceneNode*>& leaves);
 	static std::vector<glm::vec3> generateInitialContourControlPoints(SceneNode* root);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourCatmullRomGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
@@ -136,10 +115,8 @@ public:
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
 	bool splitAtBinding(ContourBinding* pointToBreak);
-	void rebindContourToNewBranchIndexBased(SceneNode* node, ContourBinding* contour, int division, std::vector<size_t>& toRebind, std::vector<ContourBinding>& bindings);
 	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings, float dist);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
-	std::vector<size_t> contourBindingIndicesToRebind(const std::vector<ContourBinding>& bindings, SceneNode* root);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
 	std::vector<ContourBinding> snapContourPoints(std::vector<ContourBinding>& bindings);
 	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings);
@@ -150,31 +127,23 @@ public:
 	void printTree(SceneNode* node, int depth);
 	void buildBranches(SceneNode* node, std::vector<SceneNode*>& currentPath, std::vector<Branch>& branches);
 	std::vector<Branch> generateAllBranches(SceneNode* root);
-	void updateGrowthRateForMidNode(SceneNode* root);
 	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 	int getMaxID(SceneNode* node);
-	int getAxisID(SceneNode* node);
 	void incrementBranchIDsOnAxis(SceneNode* node, int axisID);
 	void decrementBranchIDsOnAxis(SceneNode* node, int axisID);
 	void reorganizeChildrenLeft(SceneNode* node);
 	void reorganizeChildrenRight(SceneNode* node);
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
-	// dfs for tree traversal and assign index for each branch
-	//void buildBranchOrderDFS(
-	//	SceneNode* node,
-	//	std::vector<TraversalEvent>& traversalPath,
-	//	int& currentIndex);
-	//std::vector<std::pair<int, int>> findMisorientedContourIndices(
-	//	const std::vector<ContourBinding>& bindings,
-	//	const std::vector<TraversalEvent>& traversalPath);
+	void rebindContourPointsLargeBinding(std::vector<ContourBinding>& bindings, SceneNode* root);
+	std::vector<ContourBinding> addContourPointsLargeBinding(std::vector<ContourBinding>& bindings);
 	void validateBindingsDFS(
 		SceneNode* node,
-		const std::vector<ContourBinding>& bindings,
+		std::vector<ContourBinding*>& bindings,
 		int& contourPos,
 		std::vector<std::pair<int, BranchKey>>& misorientedPoints);
 	std::vector<std::pair<int, BranchKey>> findMisorientedContourIndices(
 		SceneNode* root,
-		const std::vector<ContourBinding>& bindings);
+		std::vector<ContourBinding*>& bindings);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V

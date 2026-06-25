@@ -2,12 +2,17 @@
 #include "SceneNode.h"
 #include <vector>
 #include <glm/glm.hpp>
-#include <utility>      // std::pair
-#include <tuple>        // std::tuple
+#include <utility>      
+#include <tuple>        
 #include <unordered_map>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <filesystem> 
 #include <glm/gtx/string_cast.hpp>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../thirdparty/stb/stb_image_write.h"
 
 void Simulation::accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
 	branchingStructure.push_back(root);
@@ -56,6 +61,10 @@ void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std:
 	index = 0;
 	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 	root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
+
+	//root->animate(0);
+	//root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+	//root->animationPerFrame(bindings, 0);
 	//if (addContour) {
 	//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 	//	branchingStructure.clear();
@@ -158,7 +167,6 @@ void Simulation::updateSimulation(float dt)
 		glm::mat4(1.0f),
 		branchGeometry
 	);
-	root->updateGrowthRateForMidNode(root);
 
 	// -----------------------------
 	// STRUCTURE UPDATE
@@ -167,6 +175,7 @@ void Simulation::updateSimulation(float dt)
 	accumulateBranchingStructure(root, branchingStructure);
 
 	bindings = root->addContourPoints(bindings);
+	bindings = root->addContourPointsLargeBinding(bindings);
 }
 
 void Simulation::animateRebuild(float dt) {
@@ -217,7 +226,6 @@ void Simulation::rebuildDebugGeometry()
 
 void Simulation::simulateGrowth(float dt)
 {
-	;
 	g_pressed = true;
 	root->animate(dt);
 }
@@ -308,8 +316,12 @@ void Simulation::handleGKey(float dt)
 	if (state == GLFW_PRESS)
 	{
 		g_pressed = true;
-		//root->updateGrowthRateForMidNode(root);
 		root->animate(dt);
+	}
+
+	// NEED THIS, else code thinks G is always pressed
+	if (state == GLFW_RELEASE) {
+		g_pressed = false;
 	}
 }
 
@@ -396,11 +408,12 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 		if (c == nullptr) {
 			std::cout << "contour point not clicked" << std::endl;
 		}
+
 		// don't want to add a new branch relative to the contour point that is bound to leaf node (don't want a vertical branch) -> might not need?
 		else if (!(c->childNode->children.empty())) {
-			if (root->divideBranchMinDistance(root, c))
-			/*ContourBinding pointToBreak = root->findBestBinding(root, c->contourPoint);
-			if (root->splitAtBinding(&pointToBreak))*/
+			//if (root->divideBranchMinDistance(root, c))
+			ContourBinding pointToBreak = root->findBestBinding(root, c->contourPoint);
+			if (root->splitAtBinding(&pointToBreak))
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 			// add new branch
 			SceneNode* newNode = root->addNewBranch(root, c, maxID);
@@ -421,12 +434,14 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			index = 0;
 			pairs.clear();
 			root->labelBranches(root, pairs, index);
-			std::vector<ContourBinding> firstHalf(
-				bindings.begin(),
-				bindings.begin() + bindings.size() / 2);
-			std::vector<ContourBinding> secondHalf(
-				bindings.rbegin(),
-				std::make_reverse_iterator(bindings.begin() + bindings.size() / 2));
+			std::vector<ContourBinding*> firstHalf;
+			for (int i = 0; i <= bindings.size() / 2; i++) {
+				firstHalf.push_back(&bindings[i]);
+			}
+			std::vector<ContourBinding*> secondHalf;
+			for (int i = bindings.size() - 1; i >= bindings.size() / 2; i--) {
+				secondHalf.push_back(&bindings[i]);
+			}
 			//std::cout << "points: " << bindings.size() << std::endl;
 			root->reorganizeChildrenLeft(root);
 			std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
@@ -435,8 +450,164 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
 			//std::cout << "mismatch indices size right: " << mismatchRight.size() << std::endl;
 			resetBool(root);
+
+			// update transformation for prev frame (delta time = 0)
+			//root->animate(0);
+			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+			//root->animationPerFrame(bindings, 0);
+			/*root->printBranches(root);
+			std::cout << "------------" << std::endl;*/
 		}
 		mouseClicked = false;
+	}
+}
+
+void Simulation::handleAKey(float dt)
+{
+	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_A);
+
+	if (state == GLFW_PRESS)
+	{
+		std::vector<ContourBinding*> firstHalf;
+		for (int i = 0; i <= bindings.size() / 2; i++) {
+			firstHalf.push_back(&bindings[i]);
+		}
+		std::vector<ContourBinding*> secondHalf;
+		for (int i = bindings.size() - 1; i >= bindings.size() / 2; i--) {
+			secondHalf.push_back(&bindings[i]);
+		}
+		root->reorganizeChildrenLeft(root);
+		std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
+		root->reorganizeChildrenRight(root);
+		std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
+		resetBool(root);
+	}
+}
+
+void saveScreenshot(int width, int height) {
+	auto folderPath = "screenshots";
+	// Create screenshots directory if it doesn't exist
+	if (!std::filesystem::exists(folderPath)) {
+		std::filesystem::create_directory(folderPath);
+	}
+
+	// Generate timestamped filename
+	auto now = std::time(nullptr);
+	auto tm = *std::localtime(&now);
+	std::ostringstream oss;
+	oss << folderPath;
+	oss << "/screenshot_";
+	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+	oss << ".png";
+	std::string filename = oss.str();
+
+	// Allocate buffer for pixel data (3 bytes per pixel: RGB)
+	GLsizei nrChannels = 3;
+	GLsizei stride = nrChannels * width;
+	stride += (stride % 4) ? (4 - stride % 4) : 0; // Align to 4 bytes
+	std::vector<unsigned char> buffer(stride * height);
+
+	// Read pixels from framebuffer (reads from BACK buffer)
+	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+
+	// Flip image vertically (OpenGL has origin at bottom-left)
+	std::vector<unsigned char> flipped(stride * height);
+	for (int row = 0; row < height; ++row) {
+		memcpy(&flipped[row * stride],
+			&buffer[(height - 1 - row) * stride],
+			stride);
+	}
+
+	// Save as PNG 
+	stbi_write_png(filename.c_str(), width, height, nrChannels, flipped.data(), stride);
+	std::cout << "Saved screenshot: " << filename << std::endl;
+}
+
+void Simulation::screenshot(GLFWwindow* window) {
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+		//taking screenshot
+		int width, height;
+		glfwGetFramebufferSize(window, &width, &height);
+		saveScreenshot(width, height);
+		//screenshotRequested = false;
+	}
+}
+
+void Simulation::saveContourGeometry(GLFWwindow* window) {
+	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+
+		// Helper lambda: find which vertex index corresponds to a node's world position
+		auto findVertexIndex = [&](SceneNode* node) -> int {
+			glm::vec3 pos = glm::vec3(node->globalTransformation[3]);
+			for (int i = 0; i < branchGeometry.verts.size(); i++) {
+				if (glm::distance(branchGeometry.verts[i], pos) < 1e-4f)
+					return i;
+			}
+			return -1; // not found
+			};
+
+		newPairs.clear();
+		root->getBranches(root, newPairs);
+		auto folderPath = "geometry_data";
+
+		// Create directory if it doesn't exist
+		if (!std::filesystem::exists(folderPath)) {
+			std::filesystem::create_directory(folderPath);
+		}
+
+		// Timestamped filename
+		auto now = std::time(nullptr);
+		auto tm = *std::localtime(&now);
+
+		std::ostringstream oss;
+		oss << folderPath;
+		oss << "/geometry_";
+		oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+		oss << ".txt";
+
+		std::string filename = oss.str();
+
+		// Open file
+		std::ofstream outFile(filename);
+
+		if (!outFile.is_open()) {
+			std::cerr << "Failed to open file for writing.\n";
+		}
+		else {
+
+			// Save contour points
+			outFile << "=== Contour Points ===\n";
+
+			for (int i = 0; i < bindings.size(); i++) {
+				glm::vec3 p = bindings[i].contourPoint;
+
+				outFile << "Point " << i << ": "
+					<< p.x << " "
+					<< p.y << " "
+					<< p.z << "\n";
+			}
+
+			// Save branch vertices
+			outFile << "\n=== Branch Vertices ===\n";
+			for (int i = 0; i < branchGeometry.verts.size(); i++) {
+				glm::vec3 v = branchGeometry.verts[i];
+				outFile << "Vertex " << i << ": "
+					<< v.x << " " << v.y << " " << v.z << "\n";
+			}
+
+			// Save edges using getBranches result -> will break if two nodes are the same points
+			outFile << "\n=== Edges (parent -> child) ===\n";
+			for (auto& [parent, child] : newPairs) {
+				int parentIdx = findVertexIndex(parent);
+				int childIdx = findVertexIndex(child);
+				if (parentIdx != -1 && childIdx != -1)
+					outFile << parentIdx << " -> " << childIdx << "\n";
+			}
+
+			outFile.close();
+
+			std::cout << "Saved geometry data: " << filename << std::endl;
+		}
 	}
 }
 

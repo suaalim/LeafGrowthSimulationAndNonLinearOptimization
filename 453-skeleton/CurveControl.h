@@ -36,6 +36,9 @@ public:
 	void handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClicked);
 	void simulateGrowth(float dt);
 	void simulateSubdivision(float length, float dt);
+	void screenshot(GLFWwindow* window);
+	void saveContourGeometry(GLFWwindow* window);
+	void handleAKey(float dt);
 
 	void splitBranch(
 		SceneNode* root,
@@ -76,5 +79,5 @@ private:
 	int index = 0;
 	bool subdivisionDone = false;
 	int maxID = 0;
-
+	bool screenshotRequested = false;
 };

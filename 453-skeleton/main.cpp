@@ -16,49 +16,9 @@
 #include <random>
 #include <ctime>
 #include <iomanip>
-#include <sstream>
 #include <filesystem> 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "toml.hpp"
-
-//void saveScreenshot(int width, int height) {
-//	auto folderPath = "screenshots";
-//	// Create screenshots directory if it doesn't exist
-//	if (!std::filesystem::exists(folderPath)) {
-//		std::filesystem::create_directory(folderPath);
-//	}
-//
-//	// Generate timestamped filename
-//	auto now = std::time(nullptr);
-//	auto tm = *std::localtime(&now);
-//	std::ostringstream oss;
-//	oss << folderPath;
-//	oss << "/screenshot_";
-//	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
-//	oss << ".png";
-//	std::string filename = oss.str();
-//
-//	// Allocate buffer for pixel data (3 bytes per pixel: RGB)
-//	GLsizei nrChannels = 3;
-//	GLsizei stride = nrChannels * width;
-//	stride += (stride % 4) ? (4 - stride % 4) : 0; // Align to 4 bytes
-//	std::vector<unsigned char> buffer(stride * height);
-//
-//	// Read pixels from framebuffer (reads from BACK buffer)
-//	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
-//
-//	// Flip image vertically (OpenGL has origin at bottom-left)
-//	std::vector<unsigned char> flipped(stride * height);
-//	for (int row = 0; row < height; ++row) {
-//		memcpy(&flipped[row * stride],
-//			&buffer[(height - 1 - row) * stride],
-//			stride);
-//	}
-//
-//	// Save as PNG 
-//	stbi_write_png(filename.c_str(), width, height, nrChannels, flipped.data(), stride);
-//	std::cout << "Saved screenshot: " << filename << std::endl;
-//}
 
 int counter = 0;
 
@@ -204,15 +164,18 @@ void draw(GLenum primitive, GLsizei vertexCount, GLsizei indexCount) {
 }
 
 int main(int argc, char* argv[]) {
-	if (argc < 2) {
-		std::cerr << "Usage: " << argv[0] << " <config_file>\n";
-		return -1;
-	}
-	std::string filePath = argv[1];
-
-	std::filesystem::path path(filePath);
-	std::string ext = path.extension().string();
+	std::string filePath;
+	std::string ext;
 	bool isTxt = false;
+	if (argc < 2) {
+		filePath = "D:\\Code\\C++\\NewPhytologist2017\\NonLinearOptimization\\plyFile\\transform_matrices7.txt";
+		ext = ".txt";
+	}
+	else {
+		filePath = argv[1];
+		std::filesystem::path path(filePath);
+		ext = path.extension().string();
+	}
 
 	if (ext == ".txt") {
 		// old behavior
@@ -242,12 +205,6 @@ int main(int argc, char* argv[]) {
 		sim.init(filePath, isTxt);
 
 		float lastTime = glfwGetTime();
-		bool sPressed = false;
-		bool aKeyPressedLastFrame = false;
-		bool tKeyPressedLastFrame = false;
-		int branchCounter = 0;
-		bool screenshotRequested = false;
-		bool bidirectionalGrowth = false;
 
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -280,13 +237,17 @@ int main(int argc, char* argv[]) {
 			// add branch based on clicking
 			sim.handleAddBranchClick(worldPos, clickedToAdd);
 
-			// need to clear geometry before calling update to draw the new positions
-			sim.updateSimulation(deltaTime);
-			// deltaTime is usually very small, between 4 to 6e-05
+			// rebind evenly at every time step
+			sim.handleAKey(deltaTime);
 
 			if (sim.g_pressed) {
 				sim.animateRebuild(deltaTime);
 			}
+			//sim.animateRebuild(deltaTime);
+
+			// need to clear geometry before calling update to draw the new positions
+			sim.updateSimulation(deltaTime);
+			// deltaTime is usually very small, between 4 to 6e-05
 
 			sim.rebuildDebugGeometry();
 			sim.rebuildContourGeometry();
@@ -316,88 +277,10 @@ int main(int argc, char* argv[]) {
 			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
 			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
 
-			// Screenshot handling (AFTER rendering, BEFORE buffer swap)
-			// saving contour and branch information
-			//if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
-			//	////taking screenshot
-			//	//int width, height;
-			//	//glfwGetFramebufferSize(window, &width, &height);
-			//	//saveScreenshot(width, height);
-			//	//screenshotRequested = false;
-
-			//	// Helper lambda: find which vertex index corresponds to a node's world position
-			//	auto findVertexIndex = [&](SceneNode* node) -> int {
-			//		glm::vec3 pos = glm::vec3(node->globalTransformation[3]);
-			//		for (int i = 0; i < branchGeometry.verts.size(); i++) {
-			//			if (glm::distance(branchGeometry.verts[i], pos) < 1e-4f)
-			//				return i;
-			//		}
-			//		return -1; // not found
-			//		};
-
-			//	newPairs.clear();
-			//	root->getBranches(root, newPairs);
-			//	auto folderPath = "geometry_data";
-
-			//	// Create directory if it doesn't exist
-			//	if (!std::filesystem::exists(folderPath)) {
-			//		std::filesystem::create_directory(folderPath);
-			//	}
-
-			//	// Timestamped filename
-			//	auto now = std::time(nullptr);
-			//	auto tm = *std::localtime(&now);
-
-			//	std::ostringstream oss;
-			//	oss << folderPath;
-			//	oss << "/geometry_";
-			//	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
-			//	oss << ".txt";
-
-			//	std::string filename = oss.str();
-
-			//	// Open file
-			//	std::ofstream outFile(filename);
-
-			//	if (!outFile.is_open()) {
-			//		std::cerr << "Failed to open file for writing.\n";
-			//	}
-			//	else {
-
-			//		// Save contour points
-			//		outFile << "=== Contour Points ===\n";
-
-			//		for (int i = 0; i < bindings.size(); i++) {
-			//			glm::vec3 p = bindings[i].contourPoint;
-
-			//			outFile << "Point " << i << ": "
-			//				<< p.x << " "
-			//				<< p.y << " "
-			//				<< p.z << "\n";
-			//		}
-
-			//		// Save branch vertices
-			//		outFile << "\n=== Branch Vertices ===\n";
-			//		for (int i = 0; i < branchGeometry.verts.size(); i++) {
-			//			glm::vec3 v = branchGeometry.verts[i];
-			//			outFile << "Vertex " << i << ": "
-			//				<< v.x << " " << v.y << " " << v.z << "\n";
-			//		}
-
-			//		// Save edges using getBranches result -> will break if two nodes are the same points
-			//		outFile << "\n=== Edges (parent -> child) ===\n";
-			//		for (auto& [parent, child] : newPairs) {
-			//			int parentIdx = findVertexIndex(parent);
-			//			int childIdx = findVertexIndex(child);
-			//			if (parentIdx != -1 && childIdx != -1)
-			//				outFile << parentIdx << " -> " << childIdx << "\n";
-			//		}
-
-			//		outFile.close();
-
-			//		std::cout << "Saved geometry data: " << filename << std::endl;
-			//	}
-			//}
+			//Screenshot handling (AFTER rendering, BEFORE buffer swap)
+			//saving contour and branch information
+			sim.screenshot(window);
+			sim.saveContourGeometry(window);
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
@@ -425,12 +308,6 @@ int main(int argc, char* argv[]) {
 		Simulation sim;
 		sim.init(filePath, isTxt);
 		float lastTime = glfwGetTime();
-		bool sPressed = false;
-		bool aKeyPressedLastFrame = false;
-		bool tKeyPressedLastFrame = false;
-		int branchCounter = 0;
-		bool screenshotRequested = false;
-		bool bidirectionalGrowth = false;
 
 		//Simulation sim;
 		//sim.init(filePath, isTxt);
