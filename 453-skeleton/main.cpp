@@ -229,7 +229,7 @@ int main(int argc, char* argv[]) {
 			sim.handleGKey(deltaTime);
 
 			// split branch
-			sim.handleSKey();
+			sim.handleSKey(glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S));
 
 			// merge branch
 			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
