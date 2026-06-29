@@ -2,14 +2,14 @@
 #include "SceneNode.h"
 #include <vector>
 #include <glm/glm.hpp>
-#include <utility>      
-#include <tuple>        
+#include <utility>
+#include <tuple>
 #include <unordered_map>
 #include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <filesystem> 
+#include <filesystem>
 #include <glm/gtx/string_cast.hpp>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../thirdparty/stb/stb_image_write.h"
@@ -279,11 +279,10 @@ void Simulation::simulateSubdivision(float length, float dt)
 //	}
 //}
 
-void Simulation::handleSKey()
+void Simulation::handleSKey(int keyState)
 {
-	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S);
 
-	if (state == GLFW_PRESS) {
+	if (keyState == GLFW_PRESS) {
 
 		if (!sPressed) {  // ensures "once per press"
 			sPressed = true;
@@ -304,7 +303,7 @@ void Simulation::handleSKey()
 		}
 	}
 
-	if (state == GLFW_RELEASE) {
+	if (keyState == GLFW_RELEASE) {
 		sPressed = false;
 	}
 }
@@ -396,6 +395,7 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool& mouseC
 
 void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClicked)
 {
+
 	if (mouseClicked) {
 		ContourBinding* c = nullptr;
 		for (int i = 0; i < bindings.size(); i++) {
@@ -406,11 +406,11 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			}
 		}
 		if (c == nullptr) {
-			std::cout << "contour point not clicked" << std::endl;
+			//std::cout << "contour point not clicked" << std::endl;
 		}
-
 		// don't want to add a new branch relative to the contour point that is bound to leaf node (don't want a vertical branch) -> might not need?
 		else if (!(c->childNode->children.empty())) {
+			printf("%f %f %f\n",worldPos.x,worldPos.y,worldPos.z);
 			//if (root->divideBranchMinDistance(root, c))
 			ContourBinding pointToBreak = root->findBestBinding(root, c->contourPoint);
 			if (root->splitAtBinding(&pointToBreak))
@@ -424,12 +424,12 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
 			root->rebindToNewBranch(newNode, c, bindings, 0.1f);
 			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
-			
+
 			//// add new contour point to split node (dont do this anymore)
 			//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 			//branchingStructure.clear();
 			//accumulateBranchingStructure(root, branchingStructure);
-			
+
 			// reorganize children (leftmost to rightmost)
 			index = 0;
 			pairs.clear();
@@ -457,8 +457,8 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			//root->animationPerFrame(bindings, 0);
 			/*root->printBranches(root);
 			std::cout << "------------" << std::endl;*/
+			mouseClicked = false;
 		}
-		mouseClicked = false;
 	}
 }
 
@@ -518,7 +518,7 @@ void saveScreenshot(int width, int height) {
 			stride);
 	}
 
-	// Save as PNG 
+	// Save as PNG
 	stbi_write_png(filename.c_str(), width, height, nrChannels, flipped.data(), stride);
 	std::cout << "Saved screenshot: " << filename << std::endl;
 }

@@ -16,7 +16,7 @@
 #include <random>
 #include <ctime>
 #include <iomanip>
-#include <filesystem> 
+#include <filesystem>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "toml.hpp"
 
@@ -205,6 +205,108 @@ int main(int argc, char* argv[]) {
 		sim.init(filePath, isTxt);
 
 		float lastTime = glfwGetTime();
+		bool t= true;
+		{
+			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			int width, height;
+			glfwGetWindowSize(window, &width, &height);
+			float currentTime = glfwGetTime();
+			float deltaTime = (currentTime - lastTime) / 10;
+			lastTime = currentTime;
+
+			// set up and update camera
+			glm::mat4 view = camera->getViewMatrix();
+			//glm::mat4 proj = camera->getProjectionMatrix((float)width / (float)height);
+			glm::mat4 proj = camera->getOrthoMatrix((float)width / (float)height);
+			glm::mat4 viewProj = proj * view;
+			gSharedState.viewMatrix = view;
+			gSharedState.projMatrix = proj;
+			glUseProgram(shader);
+			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
+
+			// animate growth
+			sim.handleGKey(deltaTime);
+
+			// split branch
+			sim.handleSKey(glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S));
+
+			// merge branch
+			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
+
+			// add branch based on clicking
+			sim.handleAddBranchClick(worldPos, clickedToAdd);
+
+			// rebind evenly at every time step
+			sim.handleAKey(deltaTime);
+
+			if (sim.g_pressed) {
+				sim.animateRebuild(deltaTime);
+			}
+			//sim.animateRebuild(deltaTime);
+
+			// need to clear geometry before calling update to draw the new positions
+			sim.updateSimulation(deltaTime);
+			// deltaTime is usually very small, between 4 to 6e-05
+
+			sim.rebuildDebugGeometry();
+			sim.rebuildContourGeometry();
+
+			glPointSize(5);
+			glLineWidth(2.0f); // Set line width to 2 pixels
+			// Branch
+			updateBuffers(sim.branchGeometry.verts, sim.branchGeometry.cols, sim.branchGeometry.indices);
+			glBindVertexArray(vao);
+			glDrawArrays(GL_POINTS, 0, sim.branchGeometry.verts.size());
+			glDrawElements(GL_LINES, sim.branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
+
+			//// Interpolated branch
+			//for (int i = 0; i < branchUpdates.size(); i++) {
+			//	updateBuffers(branchUpdates[i].verts, branchUpdates[i].cols, branchUpdates[i].indices);
+			//	glDrawArrays(GL_POINTS, 0, branchUpdates[i].verts.size());
+			//	glDrawArrays(GL_LINE_STRIP, 0, branchUpdates[i].verts.size());
+			//}
+
+			// Contour
+			updateBuffers(sim.contourGeometry.verts, sim.contourGeometry.cols, {});
+			glDrawArrays(GL_POINTS, 0, sim.contourGeometry.verts.size());
+			glDrawArrays(GL_LINE_STRIP, 0, sim.contourGeometry.verts.size());
+
+			// Mapping (DEBUGGING PURPOSES)
+			updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
+			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
+			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
+
+			//Screenshot handling (AFTER rendering, BEFORE buffer swap)
+			//saving contour and branch information
+			sim.screenshot(window);
+			sim.saveContourGeometry(window);
+
+			glfwSwapBuffers(window);
+			glfwPollEvents();
+
+
+
+			sim.handleSKey(true);
+			sim.handleAddBranchClick(glm::vec3(0.065000, 0.667500, 4.900002), t);
+		}
+		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		int width, height;
+		glfwGetWindowSize(window, &width, &height);
+		float currentTime = glfwGetTime();
+		float deltaTime = (currentTime - lastTime) / 10;
+		lastTime = currentTime;
+
+		// set up and update camera
+		glm::mat4 view = camera->getViewMatrix();
+		//glm::mat4 proj = camera->getProjectionMatrix((float)width / (float)height);
+		glm::mat4 proj = camera->getOrthoMatrix((float)width / (float)height);
+		glm::mat4 viewProj = proj * view;
+		gSharedState.viewMatrix = view;
+		gSharedState.projMatrix = proj;
+		glUseProgram(shader);
+		glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -385,7 +487,7 @@ int main(int argc, char* argv[]) {
 		toml::table out;
 		out.insert("verts", verts_array);
 		namespace fs = std::filesystem;
-		fs::create_directories("toml");  
+		fs::create_directories("toml");
 		std::ofstream file("toml/verts.toml");
 		file << out;
 		return 0;
@@ -395,4 +497,3 @@ int main(int argc, char* argv[]) {
 		return -1;
 	}
 }
-

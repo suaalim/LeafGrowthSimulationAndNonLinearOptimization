@@ -149,13 +149,13 @@ public:
 	// global transformation for contour A = T*V
 	glm::mat4 globalTransformation = glm::mat4(1.0f);
 	glm::mat4 marginTransformation = glm::mat4(1.0f);
-	// global to local transformation for rest pose 
+	// global to local transformation for rest pose
 	glm::mat4 restPoseInverse;
 	// rest pose
 	glm::mat4 restPose;
 	// for rebinding
 	bool midBranch = false;
-	// for knowing where to add a new branch/distinguish new branch 
+	// for knowing where to add a new branch/distinguish new branch
 	bool addBranch = false;
 	// for rebinding group of contour points
 	bool trackOriginalBranch = false;
@@ -170,16 +170,17 @@ public:
 	std::unordered_map<int, SceneNode*> nodes;
 	std::unordered_map<int, std::vector<std::pair<int, TransformData>>> edges;
 	int axisID = 0;
+	glm::quat localRotation;
+	glm::mat4 toGlobalMatrix;
 private:
 	// T trasformation (rest pose)
 	glm::mat4 localTranslation;
-	glm::quat localRotation;
 	glm::mat4 localScaling;
 	// V transformation (animation)
 	glm::mat4 animateTranslation = glm::mat4(1.0f);
 	glm::quat animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 	glm::mat4 animateScaling = glm::mat4(1.0f);
-	// expansion 
+	// expansion
 	glm::mat4 expansion = glm::mat4(1.f);
 	// growth
 	glm::mat4 growth = glm::mat4(1.f);
@@ -201,4 +202,3 @@ private:
 	int branchID = 0;
 	float distanceFromRoot;
 };
-

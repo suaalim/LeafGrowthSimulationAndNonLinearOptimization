@@ -30,7 +30,7 @@ public:
 	void rebuildContourGeometry();
 	void rebuildDebugGeometry();
 
-	void handleSKey();
+	void handleSKey(int keyState);
 	void handleGKey(float dt);
 	void handleRemoveBranchClick(const glm::vec3& worldPos, bool& mouseClicked);
 	void handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClicked);

@@ -43,12 +43,12 @@ void printMat4(const glm::mat4& mat) {
 }
 
 glm::mat4 calculateAnimationMatrix(ContourBinding c1) {
-	return (c1.blending) * c1.childNode->marginTransformation + (1 - (c1.blending)) * c1.parentNode->marginTransformation;
+	return (c1.blending) * c1.childNode->marginTransformation + (1 - (c1.blending)) * (c1.parentNode->marginTransformation * glm::toMat4(c1.childNode->localRotation));
 	//return (c1.blending) * (c1.blending) * c1.childNode->marginTransformation + (1 - c1.blending) * (1 - c1.blending) * c1.parentNode->marginTransformation;
 }
 
 glm::mat4 calculateAnimationMatrixForNewPoint(float blending, SceneNode* branch) {
-	return  blending * branch->marginTransformation + (1 - blending) * branch->parent->marginTransformation;
+	return  blending * branch->marginTransformation + (1 - blending) * (branch->parent->marginTransformation* glm::toMat4(branch->localRotation));
 	//return  blending * blending * branch->marginTransformation + (1 - blending) * (1 - blending) * branch->parent->marginTransformation;
 }
 
@@ -406,6 +406,9 @@ void SceneNode::animate(float deltaTime) {
 	glm::mat4 toGlobal = glm::mat4(1.0f);
 	toGlobal[0] = glm::vec4(localX, 0.f); // first column
 	toGlobal[1] = glm::vec4(localY, 0.f);
+	if (this->parent) {
+	//toGlobal[3] = this->parent->globalTransformation[3];
+	}
 	glm::mat4 toLocal = glm::inverse(toGlobal);
 
 	animated = true;
@@ -420,21 +423,21 @@ void SceneNode::animate(float deltaTime) {
 
 	if (parent == nullptr) animationScaling = (1 + deltaTime * S) * animationScaling;     // S controls growth
 	else animationScaling = (1 + deltaTime * (S * 0.5f + parent->S * 0.5f)) * animationScaling;  // average child and parent because this is branch scaling
-	//animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling, animationScaling, 1.f));
+	animateScaling = glm::scale(glm::mat4(1.0f), glm::vec3(animationScaling, animationScaling, 1.f));
 	//animateScaling = toGlobal * glm::scale(glm::mat4(1.f), glm::vec3(animationScaling, animationScaling, 1.f)) * toLocal;
 	//animateScaling = glm::scale(glm::mat4(1.0f), (animationScaling * localX) + (animationScaling * localY) + glm::vec3(0, 0, 1));
 	if (parent == nullptr) expansionAmount = (1 + deltaTime * expansionFactor) * expansionAmount;        // expansionFactor controls expansion
 	else expansionAmount = (1 + deltaTime * (expansionFactor + parent->expansionFactor) / 2.0) * expansionAmount;
 	//expansion = glm::scale(glm::mat4(1.0f), glm::vec3(expansionAmount, 1.f, 1.f));  // horizontal expansion/expansion in the direction of binding
 	//expansion = toGlobal * glm::scale(glm::mat4(1.f), glm::vec3(expansionAmount, 1.f, 1.f)) * toLocal;
-	expansion = glm::scale(glm::mat4(1.0f), (expansionAmount * localX) + localY);
-	//expansion = toGlobal * glm::scale(glm::mat4(1.f), glm::vec3(expansionAmount, 1.f, 1.f)) * toLocal;
-
+	//expansion = glm::scale(glm::mat4(1.0f), (expansionAmount * localX) + localY+glm::vec3(0,0,1));
+	expansion = glm::scale(glm::mat4(1.f), glm::vec3(expansionAmount, 1.f, 1.f));
+	toGlobalMatrix = toGlobal;
 	if (parent == nullptr) growthAmount = (1 + deltaTime * growthFactor) * growthAmount;    // vertical growth (needed when add new branch)
 	else growthAmount = (1 + deltaTime * (growthFactor * 0.5f + parent->growthFactor * 0.5f)) * growthAmount;
 	//growth = glm::scale(glm::mat4(1.0f), glm::vec3(1.f, growthAmount, 1.f));
 	//growth = glm::scale(glm::mat4(1.0f), localX + (growthAmount * localY) + glm::vec3(0, 0, 1));
-	//growth = toGlobal * glm::scale(glm::mat4(1.f), glm::vec3(1.f, growthAmount, 1.f)) * toGlobal;
+	growth = glm::scale(glm::mat4(1.f), glm::vec3(1.f, growthAmount, 1.f));
 
 	for (SceneNode* child : children) {
 		child->animate(deltaTime);
@@ -447,6 +450,8 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	// convert rotation quaternion back to matrix form
 	glm::mat4 animateRotationMatrix = glm::toMat4(animateRotation);  // from quaternion to matrix
 	glm::mat4 localRotationMatrix = glm::toMat4(localRotation);      // from quaternion to matrix
+
+	printf("%f %f %f %f\n",localRotation.x,localRotation.y,localRotation.z,localRotation.w);
 
 	// no rotation, removing scaling
 	glm::mat4 temp2 = animateScaling * localScaling * localTranslation;
@@ -464,6 +469,7 @@ void SceneNode::updateBranch(const glm::mat4& parentTransform, const glm::mat4& 
 	//temp3[3][0] = 0;
 	//temp3[3][1] = 0;
 	//temp3[3][2] = 0;
+
 
 	marginTransformation = parentTransform * localRotationMatrix * growth * animateScaling * localScaling * localTranslation * expansion;   // transformation for the current node is set here
 	//marginTransformation[0][0] = 1.f;
@@ -831,8 +837,8 @@ void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::
 		// get the current closest point, find which branch to bind to
 		bool found = false;
 		std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3, bool> branch = findClosestPointBranch(segments, &binding, found);
-		// guarantee t > 0 
-		if (std::get<2>(branch) == 0 && std::get<0>(branch)->parent != NULL) { // or could do binding.t != 0 instead of checking the parent 
+		// guarantee t > 0
+		if (std::get<2>(branch) == 0 && std::get<0>(branch)->parent != NULL) { // or could do binding.t != 0 instead of checking the parent
 			binding.parentNode = std::get<0>(branch)->parent;
 			binding.childNode = std::get<0>(branch);
 			binding.blending = 1;
@@ -1016,7 +1022,7 @@ ContourBinding* SceneNode::findContourPointToAddBranch(float height, SceneNode* 
 	//std::vector<ContourBinding*> finalContours;
 	float difference = FLT_MAX;
 
-	// don't want to connect with the first and last 
+	// don't want to connect with the first and last
 	for (size_t i = contourPoints.size() - 1; i > 1; i--) {
 		ContourBinding& contour = contourPoints[i];
 		float dist = abs(glm::length(glm::vec3(root->globalTransformation[3]) - contour.contourPoint) - height);
@@ -1043,7 +1049,7 @@ ContourBinding SceneNode::findBestBinding(SceneNode* root, const glm::vec3& cont
 			glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
 			glm::vec3 dir = childPos - parentPos;
 
-			const int steps = 50;
+			const int steps = 5000;
 			for (int i = 0; i <= steps; i++) {
 				float t = static_cast<float>(i) / steps;
 				glm::vec3 projected = parentPos + t * dir;
@@ -1296,9 +1302,9 @@ SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour, int
 		newNode->localRotation = rotationMatrix * glm::toMat4(glm::inverse(accumulateRotationToRoot(node)));
 		// might make more sense to set these values to the tip of the main axis values (like 1 or 2, not a multiple of its parent)
 		// because the value will be small with subdivision
-		newNode->S = node->S * 5;   // controls how fast or slow this new node will grow, needs to be extremely big for the new branch to grow fast enough cuz node->S is too small
-		newNode->expansionFactor = node->expansionFactor * 1;
-		newNode->growthFactor = node->growthFactor * 5; // same reasoning as S
+		newNode->S = 2;   // controls how fast or slow this new node will grow, needs to be extremely big for the new branch to grow fast enough cuz node->S is too small
+		newNode->expansionFactor = 4;
+		newNode->growthFactor = 8; // same reasoning as S
 		newNode->positionOnBranch = 1.f;
 		newNode->animationDirection = node->animationDirection;
 		// for S and growthFactor, since newNode's parameter is inherited from node's (which is way less than 1), in order for newNode to grow fast enough, it has to be multiplied by at least 10 (to make it bigger than 1)
@@ -1307,7 +1313,7 @@ SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour, int
 		newNode->branchID = 0;
 
 		//newNode->animationAngle = 30.f;
-		
+
 		// Connect to tree
 		newNode->parent = node;
 		node->addChild(newNode);
@@ -1655,7 +1661,7 @@ static void validateBranchBindings(
 	int endIndex = findEndMarkerIndex(branchEnd, bindings, contourPos); // contour point bound to branchEnd
 	if (endIndex == -1)
 		return;
-	
+
 	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
 	{
 		// collect all contour points
@@ -1781,7 +1787,7 @@ static bool validateBindingsDFSHelper(SceneNode* node, std::vector<ContourBindin
 		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
 	}
 
-	return false; 
+	return false;
 }
 
 void SceneNode::validateBindingsDFS(
@@ -2493,12 +2499,12 @@ void SceneNode::calculateNormalDirection(std::vector<ContourBinding>& bindings) 
 	for (int i = 1; i < bindings.size() - 1; i++) {
 		glm::vec3 firstDirection = glm::normalize(bindings[i].contourPoint - bindings[i - 1].contourPoint);
 		glm::vec3 secondDirection = glm::normalize(bindings[i + 1].contourPoint - bindings[i].contourPoint);
-		glm::vec3 average = glm::vec3((firstDirection.x + secondDirection.x) / 2.f, (firstDirection.y + secondDirection.y) / 2.f, (firstDirection.z + secondDirection.z) / 2.f);   // take average to get tangent vector 
+		glm::vec3 average = glm::vec3((firstDirection.x + secondDirection.x) / 2.f, (firstDirection.y + secondDirection.y) / 2.f, (firstDirection.z + secondDirection.z) / 2.f);   // take average to get tangent vector
 		bindings[i].normalDirection = glm::vec3(-average.y, average.x, average.z);  // rotate by 90 degrees counterclockwise in 2d
 	}
 }
 
-// animate contour points for growth 
+// animate contour points for growth
 void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime) {
 	// first, calculate the delta transformation matrices for all points, store in an array
 	// then blend the matrices
@@ -2510,7 +2516,7 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float d
 		animatedPosMat = calculateAnimationMatrix(bindings[i]);
 		//printMat4(animatedPosMat);
 		//glm::vec3 bindingPosition = bindings[i].closestPoint;   // translating by -bindingPosition moves it back to local space
-		
+
 		bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
 
 		//// growth (translation) in the normal direction
@@ -2602,7 +2608,7 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float d
 //
 //	for (int i = 0; i < deltaTransformations.size(); i++) {
 //		// to blend (if it is close to branching point)
-//		if (nearBranchingPoint[i] > 0.0f) {    
+//		if (nearBranchingPoint[i] > 0.0f) {
 //			float centerArc = arcLengths[i];  // current point is the center
 //			glm::mat4 sum(0.0f);
 //			int count = 0;
@@ -2646,7 +2652,7 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float d
 //	//			sum += deltaTransformations[i + offset];
 //	//			count++;
 //	//		}
-//	//		blendedTransformations.push_back(sum / static_cast<float>(count)); 
+//	//		blendedTransformations.push_back(sum / static_cast<float>(count));
 //	//	}
 //	//}
 //
@@ -2664,6 +2670,3 @@ void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float d
 //		//}
 //	}
 //}
-
-
-
