@@ -20,25 +20,31 @@ public:
 
 	bool g_pressed = false;
 
-	void init(const std::string& path, bool isTxt);
-	void step(float dt);
+	float init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim);
 
 	void stepHeadless(float dt, float length);
 
-	void updateSimulation(float dt);
+	void updateSimulation();
 	void animateRebuild(float dt);
 	void rebuildContourGeometry();
 	void rebuildDebugGeometry();
+	void rebuildBranchGeometry();
+	void clearGeometry();
 
 	void handleSKey();
+	void pressSKey(int state);
+	void releaseSkey(int state);
 	void handleGKey(float dt);
-	void handleRemoveBranchClick(const glm::vec3& worldPos, bool& mouseClicked);
-	void handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClicked);
+	void pressGKey(float dt, int state);
+	void releaseGKey(int state);
+	void handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseClicked);
+	void handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked, bool perpendicular);
 	void simulateGrowth(float dt);
-	void simulateSubdivision(float length, float dt);
+	void simulateSubdivision();
 	void screenshot(GLFWwindow* window);
 	void saveContourGeometry(GLFWwindow* window);
 	void handleAKey(float dt);
+	void simulationInstructions(float dt);
 
 	void splitBranch(
 		SceneNode* root,

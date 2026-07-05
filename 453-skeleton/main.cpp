@@ -19,6 +19,7 @@
 #include <filesystem> 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "toml.hpp"
+#include "GLDebug.h"
 
 int counter = 0;
 
@@ -164,17 +165,34 @@ void draw(GLenum primitive, GLsizei vertexCount, GLsizei indexCount) {
 }
 
 int main(int argc, char* argv[]) {
+	// configPath and mode are the only things the user needs to change
+	std::string configPath = "D:/Code/C++/NewPhytologist2017/Code/out/build/x64-Debug/simulationFiles.toml";
+	std::string mode = "txt";   // CHANGE THIS depending on if you want txt or toml
+	std::string fileOverride;   // to use the branch_file that the optimizer is modifying
+
+	if (argc > 1) mode = argv[1];
+	if (argc > 2) fileOverride = argv[2];
+
+	if (!PathsConfig::get().load(configPath)) {
+		std::cerr << "Failed to load paths config from " << configPath << "\n";
+		return 1;
+	}
+
 	std::string filePath;
 	std::string ext;
 	bool isTxt = false;
-	if (argc < 2) {
-		filePath = "D:\\Code\\C++\\NewPhytologist2017\\NonLinearOptimization\\plyFile\\transform_matrices7.txt";
+
+	if (mode == "txt") {
+		filePath = fileOverride.empty() ? PathsConfig::get().inputFileTxt : fileOverride;
 		ext = ".txt";
 	}
+	else if (mode == "toml") {
+		filePath = fileOverride.empty() ? PathsConfig::get().inputFileToml : fileOverride;
+		ext = ".toml";
+	}
 	else {
-		filePath = argv[1];
-		std::filesystem::path path(filePath);
-		ext = path.extension().string();
+		std::cerr << "Unknown mode: " << mode << " (expected \"txt\" or \"toml\")\n";
+		return -1;
 	}
 
 	if (ext == ".txt") {
@@ -191,10 +209,9 @@ int main(int argc, char* argv[]) {
 
 		glEnable(GL_DEPTH_TEST);
 		GLuint shader = ShaderLoader(
-			"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.vert",
-			"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.frag"
+			PathsConfig::get().vertShader.c_str(),
+			PathsConfig::get().fragShader.c_str()
 		).ID;
-
 
 		// create and bind VAO and VBO
 		setupBuffers();
@@ -202,17 +219,83 @@ int main(int argc, char* argv[]) {
 		Simulation sim;
 		//sim.init("D:/Code/C++/NewPhytologist2017/plyFile/transform_matrices7.txt");
 		isTxt = true;
-		sim.init(filePath, isTxt);
+		float deltaTime = sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
 
-		float lastTime = glfwGetTime();
+		//float lastTime = glfwGetTime();
 
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			int width, height;
 			glfwGetWindowSize(window, &width, &height);
+			//float currentTime = glfwGetTime();
+			glm::mat4 view = camera->getViewMatrix();
+			glm::mat4 proj = camera->getOrthoMatrix((float)width / (float)height);
+			glm::mat4 viewProj = proj * view;
+			gSharedState.viewMatrix = view;
+			gSharedState.projMatrix = proj;
+
+			glUseProgram(shader);
+			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
+
+			//sim.handleGKey(deltaTime);
+			//sim.handleSKey();
+			//sim.handleRemoveBranchClick(worldPos, clickedToRemove);
+			//clickedToRemove = false;
+			//sim.handleAddBranchClick(worldPos, clickedToAdd, true);
+			//clickedToAdd = false;
+			//sim.handleAKey(deltaTime);
+			//if (sim.g_pressed) {
+			//	sim.animateRebuild(deltaTime);
+			//}
+
+			// instructions for simulations
+			sim.simulationInstructions(deltaTime);
+			sim.updateSimulation();
+
+			sim.clearGeometry();
+			sim.rebuildBranchGeometry();
+			sim.rebuildDebugGeometry();
+			sim.rebuildContourGeometry();
+
+			sim.screenshot(window);
+			sim.saveContourGeometry(window);
+
+			glPointSize(5);
+			glLineWidth(2.0f);
+
+			// Branch
+			updateBuffers(sim.branchGeometry.verts, sim.branchGeometry.cols, sim.branchGeometry.indices);
+			glBindVertexArray(vao);
+			glDrawArrays(GL_POINTS, 0, sim.branchGeometry.verts.size());
+			glDrawElements(GL_LINES, sim.branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
+
+			// Contour
+			updateBuffers(sim.contourGeometry.verts, sim.contourGeometry.cols, {});
+			glDrawArrays(GL_POINTS, 0, sim.contourGeometry.verts.size());
+			glDrawArrays(GL_LINE_STRIP, 0, sim.contourGeometry.verts.size());
+
+			// Mapping (debug)
+			updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
+			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
+			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
+
+			glfwSwapBuffers(window);
+			glfwPollEvents();
+		}
+		glfwTerminate();
+		return 0;
+	}
+
+		/*
+		while (!glfwWindowShouldClose(window)) {
+			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			int width, height;
+			glfwGetWindowSize(window, &width, &height);
 			float currentTime = glfwGetTime();
-			float deltaTime = (currentTime - lastTime) / 10;
+			//float deltaTime = (currentTime - lastTime) / 10;
+			float deltaTime = 0.0002; // use fix deltaTime for simulation 
 			lastTime = currentTime;
 
 			// set up and update camera
@@ -226,16 +309,18 @@ int main(int argc, char* argv[]) {
 			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 
 			// animate growth
-			sim.handleGKey(deltaTime);
+			sim.handleGKey(deltaTime, glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_G));
 
 			// split branch
-			sim.handleSKey();
+			sim.handleSKey(glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S));
 
 			// merge branch
 			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
+			clickedToRemove = false;
 
 			// add branch based on clicking
 			sim.handleAddBranchClick(worldPos, clickedToAdd);
+			clickedToAdd = false;
 
 			// rebind evenly at every time step
 			sim.handleAKey(deltaTime);
@@ -288,87 +373,85 @@ int main(int argc, char* argv[]) {
 
 		glfwTerminate();
 		return 0;
-	}
+		*/
 	else if (ext == ".toml") {
-		// old behavior
-		glfwInit();
-		GLFWwindow* window = glfwCreateWindow(800, 800, "Leaf Shape", NULL, NULL);
-		glfwMakeContextCurrent(window);
-		gladLoadGL();
-		glfwSetMouseButtonCallback(window, mouseButtonCallback);
-		glfwSetScrollCallback(window, scroll_callback);
-		glfwSetKeyCallback(window, keyCallback);
-		glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-		glEnable(GL_DEPTH_TEST);
-		GLuint shader = ShaderLoader(
-			"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.vert",
-			"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.frag"
-		).ID;
-		setupBuffers();
-		Simulation sim;
-		sim.init(filePath, isTxt);
-		float lastTime = glfwGetTime();
-
+		//// old behavior
+		//glfwInit();
+		//GLFWwindow* window = glfwCreateWindow(800, 800, "Leaf Shape", NULL, NULL);
+		//glfwMakeContextCurrent(window);
+		//gladLoadGL();
+		//glfwSetMouseButtonCallback(window, mouseButtonCallback);
+		//glfwSetScrollCallback(window, scroll_callback);
+		//glfwSetKeyCallback(window, keyCallback);
+		//glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+		//glEnable(GL_DEPTH_TEST);
+		//GLuint shader = ShaderLoader(
+		//	"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.vert",
+		//	"D:/Code/C++/NewPhytologist2017/Code/assets/shaders/test.frag"
+		//).ID;
+		//setupBuffers();
 		//Simulation sim;
 		//sim.init(filePath, isTxt);
+		//float lastTime = glfwGetTime();
 
-		//auto startTime = std::chrono::high_resolution_clock::now();
-		//auto lastTime = startTime;
-
-		//const float maxDuration = 0.1f; // seconds
-		//float accumulatedTime = 0.0f;
-		//while (accumulatedTime < maxDuration) {
-		float targetTime = 0.3f;      // seconds
-		float elapsedTime = 0.0f;
-		float growthSinceLastSubdivision = 0.0f;
-		while (elapsedTime < targetTime) {
-			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			int width, height;
-			glfwGetWindowSize(window, &width, &height);
-			float currentTime = glfwGetTime();
-			float deltaTime = (currentTime - lastTime) / 10;
-			lastTime = currentTime;
-			elapsedTime += deltaTime;
-			// set up and update camera
-			glm::mat4 view = camera->getViewMatrix();
-			glm::mat4 proj = camera->getOrthoMatrix((float)width / (float)height);
-			glm::mat4 viewProj = proj * view;
-			gSharedState.viewMatrix = view;
-			gSharedState.projMatrix = proj;
-			glUseProgram(shader);
-			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
+		Simulation sim;
+		sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
+		auto startTime = std::chrono::high_resolution_clock::now();
+		auto lastTime = startTime;
+		const float maxDuration = 0.001f; // seconds
+		float accumulatedTime = 0.0f;
+		while (accumulatedTime < maxDuration) {
+		//float targetTime = 0.3f;      // seconds
+		//float elapsedTime = 0.0f;
+		//float growthSinceLastSubdivision = 0.0f;
+		//while (elapsedTime < targetTime) {
+			//glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+			//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			//int width, height;
+			//glfwGetWindowSize(window, &width, &height);
+			//float currentTime = glfwGetTime();
+			//float deltaTime = (currentTime - lastTime) / 10;
+			//lastTime = currentTime;
+			//elapsedTime += deltaTime;
+			//// set up and update camera
+			//glm::mat4 view = camera->getViewMatrix();
+			//glm::mat4 proj = camera->getOrthoMatrix((float)width / (float)height);
+			//glm::mat4 viewProj = proj * view;
+			//gSharedState.viewMatrix = view;
+			//gSharedState.projMatrix = proj;
+			//glUseProgram(shader);
+			//glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 
 			//auto currentTime = std::chrono::high_resolution_clock::now();
 			//std::chrono::duration<float> frameElapsed = currentTime - lastTime;
 			//float deltaTime = frameElapsed.count();
-
+			float deltaTime = 0.0002f;
 			//lastTime = currentTime;
 			sim.stepHeadless(deltaTime, 1.0f);
-			////accumulatedTime += deltaTime;
+			accumulatedTime += deltaTime;
 
-			glPointSize(5);
-			glLineWidth(2.0f); // Set line width to 2 pixels
-			// Branch
-			updateBuffers(sim.branchGeometry.verts, sim.branchGeometry.cols, sim.branchGeometry.indices);
-			glBindVertexArray(vao);
-			glDrawArrays(GL_POINTS, 0, sim.branchGeometry.verts.size());
-			glDrawElements(GL_LINES, sim.branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
-			updateBuffers(sim.contourGeometry.verts, sim.contourGeometry.cols, {});
-			glDrawArrays(GL_POINTS, 0, sim.contourGeometry.verts.size());
-			glDrawArrays(GL_LINE_STRIP, 0, sim.contourGeometry.verts.size());
-			updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
-			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
-			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
-			glfwSwapBuffers(window);
-			glfwPollEvents();
+			//glPointSize(5);
+			//glLineWidth(2.0f); // Set line width to 2 pixels
+			//// Branch
+			//updateBuffers(sim.branchGeometry.verts, sim.branchGeometry.cols, sim.branchGeometry.indices);
+			//glBindVertexArray(vao);
+			//glDrawArrays(GL_POINTS, 0, sim.branchGeometry.verts.size());
+			//glDrawElements(GL_LINES, sim.branchGeometry.indices.size(), GL_UNSIGNED_INT, 0);
+			//updateBuffers(sim.contourGeometry.verts, sim.contourGeometry.cols, {});
+			//glDrawArrays(GL_POINTS, 0, sim.contourGeometry.verts.size());
+			//glDrawArrays(GL_LINE_STRIP, 0, sim.contourGeometry.verts.size());
+			//updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
+			//glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
+			//draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
+			//glfwSwapBuffers(window);
+			//glfwPollEvents();
 		}
-		glfwTerminate();
+		//glfwTerminate();
+
+		//for (int i = 0; i < sim.contourGeometry.verts.size(); i++) {
+		//	glm::vec3 v = glm::vec3(sim.contourGeometry.verts[i]);
+		//	std::cout << v.x << " " << v.y << " " << v.z << std::endl;
 		//}
-		////for (int i = 0; i < sim.contourGeometry.verts.size(); i++) {
-		////	glm::vec3 v = glm::vec3(sim.contourGeometry.verts[i]);
-		////	std::cout << v.x << " " << v.y << " " << v.z << std::endl;
-		////}
 
 		// generate toml file
 		toml::array verts_array;
@@ -386,7 +469,7 @@ int main(int argc, char* argv[]) {
 		out.insert("verts", verts_array);
 		namespace fs = std::filesystem;
 		fs::create_directories("toml");  
-		std::ofstream file("toml/verts.toml");
+		std::ofstream file("verts.toml");
 		file << out;
 		return 0;
 	}

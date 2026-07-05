@@ -15,12 +15,6 @@ void printMat4(const glm::mat4& mat);
 // define the class before the struct since it uses the class
 class SceneNode;
 
-struct CrossoverRegion
-{
-	int startIndex;
-	int endIndex;
-};
-
 struct BranchKey
 {
 	SceneNode* parent;
@@ -88,12 +82,10 @@ public:
 	void addChild(SceneNode* child);
 	void removeChild(SceneNode* childToRemove);
 	static SceneNode* createBranchingStructure(int depth, std::vector<std::vector<int>> parentChildPairs, std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float, int, int>> transformations);
-	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float, int, int>> extractEdgeTransformsTxt(const std::string& filename);
-	static std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float, int, int>> extractEdgeTransformsToml(const std::string& filename);
 	static std::vector<std::vector<int>> buildChildrenList(
 		const std::vector<std::tuple<int, int, glm::mat4, glm::mat4, glm::mat4, float, int, float, float, float, float, int, int>>& edges
 	);
-	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest, CPU_Geometry& outGeometry);
+	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest);
 	void animate(float deltaTime);
 	void deleteSceneGraph(SceneNode* node);
 	void getBranches(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
@@ -101,21 +93,22 @@ public:
 	void printBranches(SceneNode* node);
 	static void getLeafNodes(SceneNode* node, std::vector<SceneNode*>& leaves);
 	static std::vector<glm::vec3> generateInitialContourControlPoints(SceneNode* root);
-	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourCatmullRomGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourCatmullRomGrouped(std::vector<glm::vec3> controlPoints, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourLinearGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>> contourQuadraticGrouped(std::vector<glm::vec3> controlPoints, int pointsPerSegment, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& branches);
 	std::vector<glm::vec3> midPoints(std::vector<glm::vec3>& contourPoints);
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
 	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
-
-	bool divideBranch(SceneNode* node, float threshold, float division, bool bidirectionalGrowth);
+	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings);
+	bool divideBranch(SceneNode* node, bool bidirectionalGrowth);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
+	ContourBinding findBestBindingPerpendicular(SceneNode* root, const glm::vec3& contourPoint);
 	bool splitAtBinding(ContourBinding* pointToBreak);
-	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings, float dist);
+	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
 	std::vector<ContourBinding> snapContourPoints(std::vector<ContourBinding>& bindings);
@@ -144,6 +137,9 @@ public:
 	std::vector<std::pair<int, BranchKey>> findMisorientedContourIndices(
 		SceneNode* root,
 		std::vector<ContourBinding*>& bindings);
+	void saveBranchGeometry(CPU_Geometry& outGeometry);
+	void readNewBranchParameter();
+	void readSimulationParameter();
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V
@@ -170,10 +166,11 @@ public:
 	std::unordered_map<int, SceneNode*> nodes;
 	std::unordered_map<int, std::vector<std::pair<int, TransformData>>> edges;
 	int axisID = 0;
+	glm::quat localRotation;
+	float deltaTime = 0.0f;
 private:
 	// T trasformation (rest pose)
 	glm::mat4 localTranslation;
-	glm::quat localRotation;
 	glm::mat4 localScaling;
 	// V transformation (animation)
 	glm::mat4 animateTranslation = glm::mat4(1.0f);
@@ -200,5 +197,16 @@ private:
 
 	int branchID = 0;
 	float distanceFromRoot;
+
+	float newBranchS = 0.0f;
+	float newBranchExpansionFactor = 0.0f;
+	float newBranchGrowthFactor = 0.0f;
+
+	float subdivisionThreshold = 0.0f;
+	float subdivisionDivision = 0.0f;
+	float newContourPointThreshold = 0.0f;
+	float newBindingPointThreshold = 0.0f;
+	float rebindContourDistance = 0.0f;
+	int pointsPerSegment = 0;
 };
 

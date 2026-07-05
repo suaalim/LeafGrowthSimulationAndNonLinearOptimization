@@ -13,6 +13,7 @@
 #include <glm/gtx/string_cast.hpp>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../thirdparty/stb/stb_image_write.h"
+#include "GLDebug.h"
 
 void Simulation::accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
 	branchingStructure.push_back(root);
@@ -59,12 +60,8 @@ void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std:
 	root->labelBranches(root, pairs, index);
 	newPairs.clear();
 	index = 0;
-	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
+	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
 	root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
-
-	//root->animate(0);
-	//root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-	//root->animationPerFrame(bindings, 0);
 	//if (addContour) {
 	//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 	//	branchingStructure.clear();
@@ -72,18 +69,23 @@ void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std:
 	//}
 }
 
-void Simulation::init(const std::string& path, bool isTxt) {
+float Simulation::init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim) {
 	std::string lower = path;
 	std::transform(lower.begin(), lower.end(), lower.begin(),
 		[](unsigned char c) { return std::tolower(c); });
 
+	// use absolute path for optimizer
+	// when python runs simulation, the working directory is where the python code is, not here
+	NewBranchConfig::instance().load(newBranch);
+	SimulationConfig::instance().load(sim);
+
 	if (isTxt)
 	{
-		edgeTransforms = SceneNode::extractEdgeTransformsTxt(path);
+		edgeTransforms = FileParser::extractEdgeTransformsTxt(path);
 	}
 	else
 	{
-		edgeTransforms = SceneNode::extractEdgeTransformsToml(path);
+		edgeTransforms = FileParser::extractEdgeTransformsToml(path);
 	}
 
 	auto parentChildPairs = SceneNode::buildChildrenList(edgeTransforms);
@@ -96,9 +98,11 @@ void Simulation::init(const std::string& path, bool isTxt) {
 		glm::mat4(1.0f),
 		glm::mat4(1.0f),
 		glm::mat4(1.0f),
-		glm::mat4(1.0f),
-		branchGeometry
+		glm::mat4(1.0f)
 	);
+
+	root->readNewBranchParameter();
+	root->readSimulationParameter();
 
 	auto contour = root->generateInitialContourControlPoints(root);  // generate contour points associated to root and leaf nodes
 	contour = root->midPoints(contour);
@@ -110,12 +114,14 @@ void Simulation::init(const std::string& path, bool isTxt) {
 	std::vector<std::pair<SceneNode*, SceneNode*>> newPairs;
 	root->getBranches(root, newPairs);
 
-	auto grouped = root->contourCatmullRomGrouped(contour, 25, pairs);
+	auto grouped = root->contourCatmullRomGrouped(contour, pairs);
 
 	bindings = root->bindInterpolatedContourToBranches(grouped);
+
+	return root->deltaTime;
 }
 
-void Simulation::step(float dt) {
+void Simulation::clearGeometry() {
 	branchGeometry.verts.clear();
 	branchGeometry.cols.clear();
 	branchGeometry.indices.clear();
@@ -123,64 +129,32 @@ void Simulation::step(float dt) {
 	contourGeometry.verts.clear();
 	contourGeometry.cols.clear();
 
-	root->updateBranch(
-		glm::mat4(1.0f),
-		glm::mat4(1.0f),
-		glm::mat4(1.0f),
-		glm::mat4(1.0f),
-		branchGeometry
-	);
-
-	bindings = root->addContourPoints(bindings);
-
-	root->animationPerFrame(bindings, dt);
-	root->calculateNormalDirection(bindings);
-
-	// rebuild contour geometry
-	contourGeometry.verts.clear();
-	for (auto& b : bindings)
-		contourGeometry.verts.push_back(b.contourPoint);
+	mappingLines.verts.clear();
+	mappingLines.cols.clear();
 }
 
-void Simulation::updateSimulation(float dt)
+void Simulation::updateSimulation()
 {
-	// -----------------------------
-	// BRANCH UPDATE
-	// -----------------------------
-	branchGeometry.verts.clear();
-	branchGeometry.cols.clear();
-	branchGeometry.indices.clear();
-
-	contourGeometry.verts.clear();
-	contourGeometry.cols.clear();
-
-	for (auto& b : branchUpdates) {
-		b.verts.clear();
-		b.cols.clear();
-		b.indices.clear();
-	}
-
 	root->updateBranch(
 		glm::mat4(1.0f),
 		glm::mat4(1.0f),
 		glm::mat4(1.0f),
-		glm::mat4(1.0f),
-		branchGeometry
+		glm::mat4(1.0f)
 	);
-
-	// -----------------------------
-	// STRUCTURE UPDATE
-	// -----------------------------
 	branchingStructure.clear();
 	accumulateBranchingStructure(root, branchingStructure);
 
 	bindings = root->addContourPoints(bindings);
-	bindings = root->addContourPointsLargeBinding(bindings);
+	//bindings = root->addContourPointsLargeBinding(bindings);
 }
 
 void Simulation::animateRebuild(float dt) {
 	root->animationPerFrame(bindings, dt);
 	root->calculateNormalDirection(bindings);
+}
+
+void Simulation::rebuildBranchGeometry() {
+	root->saveBranchGeometry(branchGeometry);
 }
 
 void Simulation::rebuildContourGeometry()
@@ -226,14 +200,21 @@ void Simulation::rebuildDebugGeometry()
 
 void Simulation::simulateGrowth(float dt)
 {
-	g_pressed = true;
+	//g_pressed = true;
 	root->animate(dt);
+	root->updateBranch(
+		glm::mat4(1.0f),
+		glm::mat4(1.0f),
+		glm::mat4(1.0f),
+		glm::mat4(1.0f)
+	);
 }
 
 
-void Simulation::simulateSubdivision(float length, float dt)
+void Simulation::simulateSubdivision()
 {
-	while (root->divideBranch(root, 0.025f, 2.f, false)) {
+	//while (root->divideBranch(root, 0.02f, 2.f, false)) {
+	if (root->divideBranch(root, false)) {
 		splitBranch(
 			root,
 			branchGeometry,
@@ -245,8 +226,8 @@ void Simulation::simulateSubdivision(float length, float dt)
 			true
 		);
 		resetBool(root);
-		simulateGrowth(dt);
-		updateSimulation(dt);
+		//simulateGrowth(dt);
+		//updateSimulation(dt);
 		//if (g_pressed) animateRebuild(dt);
 	}
 }
@@ -288,7 +269,7 @@ void Simulation::handleSKey()
 		if (!sPressed) {  // ensures "once per press"
 			sPressed = true;
 
-			if (root->divideBranch(root, 0.01f, 2.f, false)) {
+			if (root->divideBranch(root, false)) {
 				splitBranch(
 					root,
 					branchGeometry,
@@ -309,6 +290,40 @@ void Simulation::handleSKey()
 	}
 }
 
+void Simulation::pressSKey(int state)
+{
+	if (state == GLFW_PRESS) {
+		if (!sPressed) {  
+			sPressed = true;
+			simulateSubdivision();
+		}
+	}
+}
+
+void Simulation::releaseSkey(int state) {
+	if (state == GLFW_RELEASE) {
+		sPressed = false;
+	}
+}
+
+//void Simulation::handleGKey(float dt)
+//{
+//	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_G);
+//
+//	if (state == GLFW_PRESS) {
+//
+//		if (!g_pressed) {  // ensures "once per press"
+//			g_pressed = true;
+//
+//			root->animate(dt);
+//		}
+//	}
+//
+//	if (state == GLFW_RELEASE) {
+//		g_pressed = false;
+//	}
+//}
+
 void Simulation::handleGKey(float dt)
 {
 	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_G);
@@ -325,7 +340,20 @@ void Simulation::handleGKey(float dt)
 	}
 }
 
-void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool& mouseClicked)
+void Simulation::pressGKey(float dt, int state) {
+	if (state == GLFW_PRESS)
+	{
+		g_pressed = true;
+		simulateGrowth(dt);
+	}
+}
+
+void Simulation::releaseGKey(int state) {
+	if (state == GLFW_RELEASE)
+		g_pressed = false;
+}
+
+void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseClicked)
 {
 	if (!mouseClicked) return; // or remove this flag entirely if moved outside
 
@@ -377,8 +405,7 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool& mouseC
 							glm::mat4(1.0f),
 							glm::mat4(1.0f),
 							glm::mat4(1.0f),
-							glm::mat4(1.0f),
-							branchGeometry
+							glm::mat4(1.0f)
 						);
 
 						root->rebindContourWithMergedBranch(root, bindings);
@@ -390,29 +417,36 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool& mouseC
 			}
 		}
 	}
-
-	mouseClicked = false;
 }
 
-void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClicked)
+void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked, bool perpendicular)
 {
 	if (mouseClicked) {
 		ContourBinding* c = nullptr;
+		//for (int i = 0; i < bindings.size(); i++) {
+		//	if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
+		//		c = &bindings[i];
+		//		break;
+		//	}
+		//}
+		float xDifference = FLT_MAX;
+		float yDifference = FLT_MAX;
 		for (int i = 0; i < bindings.size(); i++) {
-			// clicked on a point
-			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
+			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= xDifference) && (abs(worldPos.y - bindings[i].contourPoint.y) <= yDifference)) {
+				xDifference = abs(worldPos.x - bindings[i].contourPoint.x);
+				yDifference = abs(worldPos.y - bindings[i].contourPoint.y);
 				c = &bindings[i];
-				break;
 			}
 		}
 		if (c == nullptr) {
 			std::cout << "contour point not clicked" << std::endl;
 		}
-
-		// don't want to add a new branch relative to the contour point that is bound to leaf node (don't want a vertical branch) -> might not need?
-		else if (!(c->childNode->children.empty())) {
-			//if (root->divideBranchMinDistance(root, c))
-			ContourBinding pointToBreak = root->findBestBinding(root, c->contourPoint);
+		else {
+			ContourBinding pointToBreak;
+			if (perpendicular)
+				pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
+			else
+				pointToBreak = root->findBestBinding(root, c->contourPoint);
 			if (root->splitAtBinding(&pointToBreak))
 				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
 			// add new branch
@@ -421,8 +455,8 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			root->labelBranches(root, pairs, index);
 			newPairs.clear();
 			index = 0;
-			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-			root->rebindToNewBranch(newNode, c, bindings, 0.1f);
+			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+			root->rebindToNewBranch(newNode, c, bindings);
 			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
 			
 			//// add new contour point to split node (dont do this anymore)
@@ -435,30 +469,24 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool& mouseClic
 			pairs.clear();
 			root->labelBranches(root, pairs, index);
 			std::vector<ContourBinding*> firstHalf;
-			for (int i = 0; i <= bindings.size() / 2; i++) {
+			for (int i = 1; i <= bindings.size() / 2; i++) {
 				firstHalf.push_back(&bindings[i]);
 			}
 			std::vector<ContourBinding*> secondHalf;
-			for (int i = bindings.size() - 1; i >= bindings.size() / 2; i--) {
+			for (int i = bindings.size() - 2; i >= bindings.size() / 2; i--) {
 				secondHalf.push_back(&bindings[i]);
 			}
-			//std::cout << "points: " << bindings.size() << std::endl;
+
 			root->reorganizeChildrenLeft(root);
-			std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
-			//std::cout << "mismatch indices size left: " << mismatchLeft.size() << std::endl;
 			root->reorganizeChildrenRight(root);
 			std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
-			//std::cout << "mismatch indices size right: " << mismatchRight.size() << std::endl;
 			resetBool(root);
 
 			// update transformation for prev frame (delta time = 0)
-			//root->animate(0);
-			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), branchGeometry);
-			//root->animationPerFrame(bindings, 0);
-			/*root->printBranches(root);
-			std::cout << "------------" << std::endl;*/
+			root->animate(0);
+			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+			root->animationPerFrame(bindings, 0);
 		}
-		mouseClicked = false;
 	}
 }
 
@@ -548,7 +576,7 @@ void Simulation::saveContourGeometry(GLFWwindow* window) {
 
 		newPairs.clear();
 		root->getBranches(root, newPairs);
-		auto folderPath = "geometry_data";
+		auto folderPath = "leaf geometry";
 
 		// Create directory if it doesn't exist
 		if (!std::filesystem::exists(folderPath)) {
@@ -561,7 +589,7 @@ void Simulation::saveContourGeometry(GLFWwindow* window) {
 
 		std::ostringstream oss;
 		oss << folderPath;
-		oss << "/geometry_";
+		oss << "/leaf geometry";
 		oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
 		oss << ".txt";
 
@@ -611,14 +639,62 @@ void Simulation::saveContourGeometry(GLFWwindow* window) {
 	}
 }
 
+// state machine (script for simulation instructions)
+// each frame does each phase (case)
+enum class ScriptPhase {
+	Idle,
+	PressS,
+	AddBranch,
+	HoldG,
+	Done
+};
+
+ScriptPhase scriptPhase = ScriptPhase::Idle;
+float phaseElapsed = 0.0f;
+const float G_HOLD_DURATION = 1.0f; 
+
+void Simulation::simulationInstructions(float dt) {
+	switch (scriptPhase) {
+	case ScriptPhase::Idle:
+		scriptPhase = ScriptPhase::PressS;
+		break;
+
+	case ScriptPhase::PressS:
+		pressSKey(GLFW_PRESS);
+		releaseSkey(GLFW_RELEASE);
+		scriptPhase = ScriptPhase::AddBranch;
+		break;
+
+	case ScriptPhase::AddBranch:
+		handleAddBranchClick(glm::vec3(0.054f, 0.58057f, 0.0f), true, false);
+		pressGKey(dt, GLFW_PRESS);   // g_pressed = true, first growth step
+		phaseElapsed = 0.0f;
+		scriptPhase = ScriptPhase::HoldG;
+		break;
+
+	case ScriptPhase::HoldG:
+		simulateGrowth(dt);
+		animateRebuild(dt);
+		phaseElapsed += dt;
+		if (phaseElapsed >= G_HOLD_DURATION) {
+			releaseGKey(GLFW_RELEASE);
+			scriptPhase = ScriptPhase::Done;
+		}
+		break;
+
+	case ScriptPhase::Done:
+		break;
+	}
+}
+
 void Simulation::stepHeadless(float dt, float length)
 {
 	if (!subdivisionDone) {
-		simulateSubdivision(length, dt);
+		simulateSubdivision();
 		subdivisionDone = true;
 	}
 	simulateGrowth(dt);
-	updateSimulation(dt);
+	updateSimulation();
 	if (g_pressed) animateRebuild(dt);
 	rebuildContourGeometry();
 	rebuildDebugGeometry();
