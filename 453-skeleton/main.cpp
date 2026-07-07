@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
 		Simulation sim;
 		isTxt = true;
 		float deltaTime = sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
-		sim.setVisualization();
+		//sim.setVisualization();
 		//float lastTime = glfwGetTime();
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -238,28 +238,25 @@ int main(int argc, char* argv[]) {
 			glUseProgram(shader);
 			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 
-			//sim.handleGKey(deltaTime);
-			//sim.handleSKey();
-			//sim.handleRemoveBranchClick(worldPos, clickedToRemove);
-			//clickedToRemove = false;
-			//sim.handleAddBranchClick(worldPos, clickedToAdd, true);
-			//clickedToAdd = false;
-			//sim.handleAKey(deltaTime);
-			//if (sim.g_pressed) {
-			//	sim.animateRebuild(deltaTime);
-			//}
+			sim.handleGKey(deltaTime);
+			sim.handleSKey();
+			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
+			clickedToRemove = false;
+			sim.handleAddBranchClick(worldPos, clickedToAdd, false);
+			clickedToAdd = false;
+			sim.handleAKey(deltaTime);
+			if (sim.g_pressed) {
+				sim.animateRebuild(deltaTime);
+			}
 
 			// instructions for simulations
-			sim.simulationInstructions(deltaTime);
+			//sim.simulationInstructions(deltaTime);
 			sim.updateSimulation();
 
 			sim.clearGeometry();
 			sim.rebuildBranchGeometry();
 			sim.rebuildDebugGeometry();
 			sim.rebuildContourGeometry();
-
-			sim.screenshot(window);
-			sim.saveContourGeometry(window);
 
 			glPointSize(5);
 			glLineWidth(2.0f);
@@ -279,6 +276,9 @@ int main(int argc, char* argv[]) {
 			updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
 			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
 			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
+
+			sim.screenshot(window);   // have to call after scene is rendered
+			sim.saveContourGeometry(window);
 
 			// visualization
 			// Spheres

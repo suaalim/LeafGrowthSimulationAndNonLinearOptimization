@@ -423,21 +423,21 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 {
 	if (mouseClicked) {
 		ContourBinding* c = nullptr;
-		//for (int i = 0; i < bindings.size(); i++) {
-		//	if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
-		//		c = &bindings[i];
-		//		break;
-		//	}
-		//}
-		float xDifference = FLT_MAX;
-		float yDifference = FLT_MAX;
 		for (int i = 0; i < bindings.size(); i++) {
-			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= xDifference) && (abs(worldPos.y - bindings[i].contourPoint.y) <= yDifference)) {
-				xDifference = abs(worldPos.x - bindings[i].contourPoint.x);
-				yDifference = abs(worldPos.y - bindings[i].contourPoint.y);
+			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
 				c = &bindings[i];
+				break;
 			}
 		}
+		//float xDifference = FLT_MAX;
+		//float yDifference = FLT_MAX;
+		//for (int i = 0; i < bindings.size(); i++) {
+		//	if ((abs(worldPos.x - bindings[i].contourPoint.x) <= xDifference) && (abs(worldPos.y - bindings[i].contourPoint.y) <= yDifference)) {
+		//		xDifference = abs(worldPos.x - bindings[i].contourPoint.x);
+		//		yDifference = abs(worldPos.y - bindings[i].contourPoint.y);
+		//		c = &bindings[i];
+		//	}
+		//}
 		if (c == nullptr) {
 			std::cout << "contour point not clicked" << std::endl;
 		}
@@ -478,6 +478,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			}
 
 			root->reorganizeChildrenLeft(root);
+			std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
 			root->reorganizeChildrenRight(root);
 			std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
 			resetBool(root);
@@ -645,6 +646,8 @@ enum class ScriptPhase {
 	Idle,
 	PressS,
 	AddBranch,
+	AddBranch2,
+	AddBranch3,
 	HoldG,
 	Done
 };
@@ -668,6 +671,20 @@ void Simulation::simulationInstructions(float dt) {
 
 	case ScriptPhase::AddBranch:
 		handleAddBranchClick(glm::vec3(0.054f, 0.58057f, 0.0f), true, false);
+		//pressGKey(dt, GLFW_PRESS);   // g_pressed = true, first growth step
+		//phaseElapsed = 0.0f;
+		scriptPhase = ScriptPhase::AddBranch2;
+		break;
+
+	case ScriptPhase::AddBranch2:
+		handleAddBranchClick(glm::vec3(-0.054f, 0.58057f, 0.0f), true, false);
+		//pressGKey(dt, GLFW_PRESS);   // g_pressed = true, first growth step
+		//phaseElapsed = 0.0f;
+		scriptPhase = ScriptPhase::HoldG;
+		break;
+
+	case ScriptPhase::AddBranch3:
+		handleAddBranchClick(glm::vec3(-0.045f, 0.88057f, 0.0f), true, false);
 		pressGKey(dt, GLFW_PRESS);   // g_pressed = true, first growth step
 		phaseElapsed = 0.0f;
 		scriptPhase = ScriptPhase::HoldG;
@@ -720,7 +737,7 @@ void Simulation::stepHeadless(float dt, float length)
 }
 
 void Simulation::setVisualization() {
-	updateMarkerKeys(bindings, 5, contourMarkerKeys);
+	updateMarkerKeys(bindings, 10, contourMarkerKeys);
 }
 
 void Simulation::visualization() {

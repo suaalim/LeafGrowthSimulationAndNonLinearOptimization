@@ -976,6 +976,23 @@ ContourBinding SceneNode::findBestBinding(SceneNode* root, const glm::vec3& cont
 	return bestBinding;
 }
 
+static SceneNode* findExistingNodeNear(SceneNode* current, const glm::vec3& targetPos, float epsilon)
+{
+	if (!current) return nullptr;
+
+	glm::vec3 currentPos = glm::vec3(current->globalTransformation[3]);
+	if (glm::length(currentPos - targetPos) <= epsilon) {
+		return current;
+	}
+
+	for (SceneNode* c : current->children) {
+		if (SceneNode* found = findExistingNodeNear(c, targetPos, epsilon)) {
+			return found;
+		}
+	}
+	return nullptr;
+}
+
 // non-recursive divideBranchMinDistance
 bool SceneNode::splitAtBinding(ContourBinding* pointToBreak)
 {
@@ -993,6 +1010,26 @@ bool SceneNode::splitAtBinding(ContourBinding* pointToBreak)
 		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
 		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
 		float distance = glm::length(childPos - parentPos);
+
+		// check whether a node already exists at (or very near) the split point
+		SceneNode* existingNode = findExistingNodeNear(this, pointToBreak->closestPoint, 1e-3f);
+
+		// don't create a mid node (just use the existing one)
+		if (existingNode) {
+			node->midBranch = true;
+			existingNode->midBranch = true;
+			child->midBranch = true;
+			node->trackOriginalBranch = true;  
+			child->trackOriginalBranch = true;  
+			pointToBreak->parentNode->trackOriginalBranch = true;
+			pointToBreak->childNode->trackOriginalBranch = true;
+			// to add new branch at existingNode
+			existingNode->addBranch = true;
+
+			divided = true;
+			return divided;
+		}
+
 		SceneNode* midNode = new SceneNode();
 
 		// break in the closest point of the branch found in bindBestBinding (the projection of the point that minimizes totalDistance)
@@ -1704,7 +1741,7 @@ void SceneNode::validateBindingsDFS(
 //	}
 //}
 
-// find cross overbranch
+// find cross over branch
 std::vector<std::pair<int, BranchKey>> SceneNode::findMisorientedContourIndices(
 	SceneNode* root,
 	std::vector<ContourBinding*>& bindings)

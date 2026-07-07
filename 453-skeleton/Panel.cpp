@@ -63,7 +63,7 @@ void updateMarkerKeys(const std::vector<ContourBinding>& bindings, int stride, s
 	size_t n = bindings.size();
 
 	while (true) {    
-		size_t targetIndex = markerKeys.size() * (size_t)stride;
+		size_t targetIndex = markerKeys.size() + (size_t)stride;
 		if (targetIndex >= n) break;
 		markerKeys.push_back(bindings[targetIndex].uniqueKey);  // store contour points (key) to draw sphere
 	}
@@ -76,17 +76,17 @@ ContourMarkerResult buildContourMarkers(const CPU_Geometry& contourGeometry, std
 	std::unordered_map<size_t, size_t> keyToIndex;
 	keyToIndex.reserve(bindings.size());
 	for (size_t idx = 0; idx < bindings.size(); idx++) {
-		keyToIndex[bindings[idx].uniqueKey] = idx;
+		keyToIndex[bindings[idx].uniqueKey] = idx;  // record where each uniqueKey lives (index) -> updated every frame
 	}
 
 	const float normalLength = radius * 0.3f;
 
 	for (size_t key : markerKeys) {
-		auto it = keyToIndex.find(key);
+		auto it = keyToIndex.find(key);  // find current index for uniqueKey (since it changes every frame)
 		if (it == keyToIndex.end()) {
 			continue; 
 		}
-		size_t i = it->second;
+		size_t i = it->second; // i = index of uniqueKey
 		if (i >= contourGeometry.verts.size()) {
 			continue;
 		}
@@ -104,11 +104,11 @@ ContourMarkerResult buildContourMarkers(const CPU_Geometry& contourGeometry, std
 		sphere.verts.reserve(localSphere.verts.size());
 		sphere.cols.reserve(localSphere.verts.size());
 
-		for (size_t v = 0; v < localSphere.verts.size(); ++v) {
-			glm::vec4 worldPos = transform * glm::vec4(localSphere.verts[v], 1.0f);
+		for (size_t v = 0; v < localSphere.verts.size(); v++) {
+			glm::vec4 worldPos = transform * glm::vec4(localSphere.verts[v], 1.0f);  // transform each vertex of the sphere
 			sphere.verts.push_back(glm::vec3(worldPos));
 
-			glm::vec3 normalShade = localSphere.normals[v] * 0.5f + 0.5f;
+			glm::vec3 normalShade = localSphere.normals[v] * 0.5f + 0.5f;  // use normals to color the sphere (do not transform the normals so that we see rotation)
 			sphere.cols.push_back(normalShade);
 
 			// to draw normals

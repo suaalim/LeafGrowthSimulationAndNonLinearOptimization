@@ -90,4 +90,5 @@ private:
 	bool subdivisionDone = false;
 	int maxID = 0;
 	bool screenshotRequested = false;
+	bool clickedToAdd = false;
 };
