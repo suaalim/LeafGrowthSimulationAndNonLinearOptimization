@@ -1,10 +1,10 @@
 #pragma once
-
 #include <vector>
 #include <tuple>
 
 #include "SceneNode.h"
 #include "Geometry.h"
+#include "panel.h"
 
 #ifdef HEADLESS_BUILD
 #define GLFW_CALL(x)   // no-op
@@ -17,6 +17,8 @@ public:
 	CPU_Geometry branchGeometry;
 	CPU_Geometry contourGeometry;
 	CPU_Geometry mappingLines;
+	std::vector<size_t> contourMarkerKeys;
+	ContourMarkerResult contourMarkers;
 
 	bool g_pressed = false;
 
@@ -30,6 +32,8 @@ public:
 	void rebuildDebugGeometry();
 	void rebuildBranchGeometry();
 	void clearGeometry();
+	void setVisualization();
+	void visualization();
 
 	void handleSKey();
 	void pressSKey(int state);

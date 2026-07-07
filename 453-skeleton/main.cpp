@@ -20,6 +20,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "toml.hpp"
 #include "GLDebug.h"
+#include "panel.h"
 
 int counter = 0;
 
@@ -166,12 +167,13 @@ void draw(GLenum primitive, GLsizei vertexCount, GLsizei indexCount) {
 
 int main(int argc, char* argv[]) {
 	// configPath and mode are the only things the user needs to change
-	std::string configPath = "D:/Code/C++/NewPhytologist2017/Code/out/build/x64-Debug/simulationFiles.toml";
+	std::string configPath = "D:/Code/C++/NewPhytologist2017/Code/out/build/x64-Debug/simulationFiles.toml";  
 	std::string mode = "txt";   // CHANGE THIS depending on if you want txt or toml
 	std::string fileOverride;   // to use the branch_file that the optimizer is modifying
 
-	if (argc > 1) mode = argv[1];
-	if (argc > 2) fileOverride = argv[2];
+	if (argc > 1) mode = argv[1];  // txt or toml?
+	if (argc > 2) fileOverride = argv[2];  // for optimizer to use parameters from optimizer
+	if (argc > 3) configPath = argv[3];  // if user wants a different configPath
 
 	if (!PathsConfig::get().load(configPath)) {
 		std::cerr << "Failed to load paths config from " << configPath << "\n";
@@ -217,12 +219,10 @@ int main(int argc, char* argv[]) {
 		setupBuffers();
 
 		Simulation sim;
-		//sim.init("D:/Code/C++/NewPhytologist2017/plyFile/transform_matrices7.txt");
 		isTxt = true;
 		float deltaTime = sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
-
+		sim.setVisualization();
 		//float lastTime = glfwGetTime();
-
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -275,10 +275,24 @@ int main(int argc, char* argv[]) {
 			glDrawArrays(GL_POINTS, 0, sim.contourGeometry.verts.size());
 			glDrawArrays(GL_LINE_STRIP, 0, sim.contourGeometry.verts.size());
 
-			// Mapping (debug)
+			// Mapping 
 			updateBuffers(sim.mappingLines.verts, sim.mappingLines.cols, sim.mappingLines.indices);
 			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
 			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
+
+			// visualization
+			// Spheres
+			sim.visualization();
+			updateBuffers(sim.contourMarkers.spheres.verts, sim.contourMarkers.spheres.cols, sim.contourMarkers.spheres.indices);
+			glDrawElements(GL_TRIANGLES, sim.contourMarkers.spheres.indices.size(), GL_UNSIGNED_INT, 0);
+			// Connector lines
+			updateBuffers(sim.contourMarkers.connectors.verts, sim.contourMarkers.connectors.cols, sim.contourMarkers.connectors.indices);
+			glLineWidth(1.5f);
+			glDrawElements(GL_LINES, sim.contourMarkers.connectors.indices.size(), GL_UNSIGNED_INT, 0);
+			//// sphere normals
+			//updateBuffers(sim.contourMarkers.normals.verts, sim.contourMarkers.normals.cols, sim.contourMarkers.normals.indices);
+			//glLineWidth(1.5f);
+			//glDrawElements(GL_LINES, sim.contourMarkers.normals.indices.size(), GL_UNSIGNED_INT, 0);
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();

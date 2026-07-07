@@ -655,6 +655,7 @@ const float G_HOLD_DURATION = 1.0f;
 
 void Simulation::simulationInstructions(float dt) {
 	switch (scriptPhase) {
+		
 	case ScriptPhase::Idle:
 		scriptPhase = ScriptPhase::PressS;
 		break;
@@ -681,7 +682,25 @@ void Simulation::simulationInstructions(float dt) {
 			scriptPhase = ScriptPhase::Done;
 		}
 		break;
+	
+	/*
+	case ScriptPhase::Idle:
+		pressGKey(dt, GLFW_PRESS);   
+		phaseElapsed = 0.0f;
+		scriptPhase = ScriptPhase::HoldG;
+		break;
 
+	case ScriptPhase::HoldG:
+		simulateGrowth(dt);
+		animateRebuild(dt);
+		phaseElapsed += dt;
+
+		if (phaseElapsed >= G_HOLD_DURATION) {
+			releaseGKey(GLFW_RELEASE);
+			scriptPhase = ScriptPhase::Done;
+		}
+		break;
+	*/
 	case ScriptPhase::Done:
 		break;
 	}
@@ -698,4 +717,12 @@ void Simulation::stepHeadless(float dt, float length)
 	if (g_pressed) animateRebuild(dt);
 	rebuildContourGeometry();
 	rebuildDebugGeometry();
+}
+
+void Simulation::setVisualization() {
+	updateMarkerKeys(bindings, 5, contourMarkerKeys);
+}
+
+void Simulation::visualization() {
+	contourMarkers = buildContourMarkers(contourGeometry, bindings, contourMarkerKeys, 0.03f);
 }

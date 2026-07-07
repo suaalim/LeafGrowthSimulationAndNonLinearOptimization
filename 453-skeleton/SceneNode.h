@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "Geometry.h"
-#include "Panel.h"
 #include "ShaderProgram.h"
 #include "Window.h"
 #include <glm/glm.hpp>
@@ -62,6 +61,7 @@ struct ContourBinding {
 	glm::mat4 previousAnimateInverse;
 	bool newBranchBinding = false;
 	float blending;
+	int uniqueKey;
 	// compute normal direction
 	glm::vec3 normalDirection = glm::vec3(0.f);
 	float normalFactor = 0.05f;
@@ -168,6 +168,7 @@ public:
 	int axisID = 0;
 	glm::quat localRotation;
 	float deltaTime = 0.0f;
+	int contourKey;
 private:
 	// T trasformation (rest pose)
 	glm::mat4 localTranslation;

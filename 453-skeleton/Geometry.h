@@ -14,7 +14,6 @@
 
 #include <vector>
 
-
 // List of vertices and texture coordinates using std::vector and glm::vec3
 struct CPU_Geometry {
 	// for index buffer
@@ -43,4 +42,10 @@ protected:
 	VertexBuffer colorsBuffer;
 private:
 
+};
+
+struct ContourMarkerResult {
+	CPU_Geometry spheres;    // triangles
+	CPU_Geometry connectors; // lines: original point -> sphere center
+	CPU_Geometry normals;
 };

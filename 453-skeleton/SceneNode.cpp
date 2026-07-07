@@ -1968,8 +1968,9 @@ std::vector<ContourBinding> SceneNode::bindInterpolatedContourToBranches(std::ve
 			glm::mat4 previousAnimateInverse = glm::inverse(calculateAnimationMatrixForNewPoint(blending, child));
 
 			glm::vec3 bindingdirection = (contourPoints[i].first[j] - closestPoint) / 2.f;
-			bestBinding = { parent, child, contourPoints[i].first[j], t, closestPoint, previousAnimateInverse, false, blending };
+			bestBinding = { parent, child, contourPoints[i].first[j], t, closestPoint, previousAnimateInverse, false, blending, contourKey };
 			bindings.push_back(bestBinding);
+			contourKey += 1;
 		}
 	}
 
@@ -1997,7 +1998,8 @@ std::vector<ContourBinding> SceneNode::bindContourToBranches(const std::vector<g
 
 			if (dist < minDist) {
 				minDist = dist;
-				bestBinding = { parent, child, contourPoint, t, closest, glm::inverse(calculateAnimationMatrixForNewPoint(t, child)), false, t };
+				bestBinding = { parent, child, contourPoint, t, closest, glm::inverse(calculateAnimationMatrixForNewPoint(t, child)), false, t, contourKey };
+				contourKey += 1;
 
 			}
 		}
@@ -2165,7 +2167,8 @@ std::vector<ContourBinding> SceneNode::addNewContourToBindToNewBranchNode(std::v
 			//float branchT = glm::length(bindings[i].parentNode->globalTransformation[3] - bindings[i].childNode->globalTransformation[3]) / glm::length(bindings[i].parentNode->globalTransformation[3] - bindings[i + 1].childNode->globalTransformation[3]);
 			//glm::vec3 newPoint = branchT * bindings[i].contourPoint + (1 - branchT) * bindings[i + 1].contourPoint;
 			newBindingSet.push_back(bindings[i]);
-			newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, closestPoint, previousiInverseAnimationMat, bindings[i].newBranchBinding, blending });
+			newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, closestPoint, previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+			contourKey += 1;
 		}
 		// right side
 		else if (bindings[i].childNode != bindings[i + 1].childNode && bindings[i].parentNode == bindings[i + 1].childNode && bindings[i + 1].t != 1) {
@@ -2179,7 +2182,8 @@ std::vector<ContourBinding> SceneNode::addNewContourToBindToNewBranchNode(std::v
 			/*float branchT = glm::length(bindings[i + 1].parentNode->globalTransformation[3] - bindings[i + 1].childNode->globalTransformation[3]) / glm::length(bindings[i + 1].parentNode->globalTransformation[3] - bindings[i].childNode->globalTransformation[3]);
 			glm::vec3 newPoint = branchT * bindings[i + 1].contourPoint + (1 - branchT) * bindings[i].contourPoint;*/
 			newBindingSet.push_back(bindings[i]);
-			newBindingSet.push_back({ bindings[i + 1].parentNode, bindings[i + 1].childNode, newPoint, t, closestPoint, previousiInverseAnimationMat, bindings[i + 1].newBranchBinding, blending });
+			newBindingSet.push_back({ bindings[i + 1].parentNode, bindings[i + 1].childNode, newPoint, t, closestPoint, previousiInverseAnimationMat, bindings[i + 1].newBranchBinding, blending, contourKey });
+			contourKey += 1;
 		}
 		else {
 			newBindingSet.push_back(bindings[i]);
@@ -2224,14 +2228,16 @@ std::vector<ContourBinding> SceneNode::addContourPoints(std::vector<ContourBindi
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, neighbor.childNode));
 				glm::vec3 closestPoint = calculateClosestPointForNewPoint(t, neighbor.childNode);
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending });
+				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				contourKey += 1;
 			}
 			else {
 				float blending = (bindings[i].blending + bindings[i + 1].blending) / 2.f;
 				float t = (bindings[i].t + bindings[i + 1].t) / 2.f;
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, bindings[i].childNode));
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending });
+				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				contourKey += 1;
 			}
 		}
 		else {
@@ -2263,14 +2269,16 @@ std::vector<ContourBinding> SceneNode::addContourPointsLargeBinding(std::vector<
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, neighbor.childNode));
 				glm::vec3 closestPoint = calculateClosestPointForNewPoint(t, neighbor.childNode);
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending });
+				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				contourKey += 1;
 			}
 			else {
 				float blending = (bindings[i].blending + bindings[i + 1].blending) / 2.f;
 				float t = (bindings[i].t + bindings[i + 1].t) / 2.f;
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, bindings[i].childNode));
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending });
+				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				contourKey += 1;
 			}
 		}
 		else {
