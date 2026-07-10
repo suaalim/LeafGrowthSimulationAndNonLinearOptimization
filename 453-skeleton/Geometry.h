@@ -48,4 +48,5 @@ struct ContourMarkerResult {
 	CPU_Geometry spheres;    // triangles
 	CPU_Geometry connectors; // lines: original point -> sphere center
 	CPU_Geometry normals;
+	CPU_Geometry referenceCircles;
 };

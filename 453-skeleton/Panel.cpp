@@ -19,6 +19,22 @@ static glm::vec3 hueToRGB(float hue01) {
 	return c;
 }
 
+CPU_Geometry generateCircle(float radius, int segments = 16) {
+	CPU_Geometry circle;
+	circle.verts.reserve(segments);
+	circle.cols.reserve(segments);
+	circle.indices.reserve(segments * 2);
+
+	for (int i = 0; i < segments; i++) {
+		float angle = 2.0f * glm::pi<float>() * float(i) / float(segments);
+		circle.verts.push_back(glm::vec3(radius * cos(angle), radius * sin(angle), 0.0f)); // XY plane
+		circle.cols.push_back(glm::vec3(0.0f, 0.0f, 0.0f));
+		circle.indices.push_back(i);
+		circle.indices.push_back((i + 1) % segments);
+	}
+	return circle;
+}
+
 SphereMesh generateSphere(float radius, int stacks, int slices) {
 	SphereMesh sphere;
 
@@ -72,6 +88,7 @@ void updateMarkerKeys(const std::vector<ContourBinding>& bindings, int stride, s
 ContourMarkerResult buildContourMarkers(const CPU_Geometry& contourGeometry, std::vector<ContourBinding>& bindings, const std::vector<size_t>& markerKeys, float radius) {
 	ContourMarkerResult result;
 	SphereMesh localSphere = generateSphere(radius, 8, 8);  // increase resolution if necessary
+	CPU_Geometry localCircle = generateCircle(radius, 32);
 
 	std::unordered_map<size_t, size_t> keyToIndex;
 	keyToIndex.reserve(bindings.size());
@@ -138,68 +155,16 @@ ContourMarkerResult buildContourMarkers(const CPU_Geometry& contourGeometry, std
 		result.connectors.cols.push_back(glm::vec3(0, 0, 1));
 		result.connectors.indices.push_back(lineOffset);
 		result.connectors.indices.push_back(lineOffset + 1);
+
+		unsigned int circleOffset = (unsigned int)result.referenceCircles.verts.size();
+		for (size_t v = 0; v < localCircle.verts.size(); v++) {
+			result.referenceCircles.verts.push_back(localCircle.verts[v] + transformedCenter); // use transformed center to draw it on top of the sphere after being transformed
+			result.referenceCircles.cols.push_back(localCircle.cols[v]);
+		}
+		for (unsigned int idx : localCircle.indices) {
+			result.referenceCircles.indices.push_back(idx + circleOffset);
+		}
 	}
-
-	//for (size_t i = 0; i < contourGeometry.verts.size(); i += stride) {
-	//	if (i >= bindings.size()) {
-	//		continue;
-	//	}
-
-	//	glm::vec3 originalPos = contourGeometry.verts[i];
-
-	//	const glm::mat4 transform =
-	//		(bindings[i].t) * bindings[i].childNode->marginTransformation +
-	//		(1 - bindings[i].t) * bindings[i].parentNode->marginTransformation *
-	//		glm::toMat4(bindings[i].childNode->localRotation);
-
-	//	// correct normal transform even under non-uniform scale
-	//	glm::mat3 normalMatrix = glm::inverseTranspose(glm::mat3(transform));
-
-	//	CPU_Geometry sphere;
-	//	sphere.indices = localSphere.indices;
-	//	sphere.verts.reserve(localSphere.verts.size());
-	//	sphere.cols.reserve(localSphere.verts.size());
-
-	//	const float normalLength = radius * 0.3f;
-
-	//	for (size_t v = 0; v < localSphere.verts.size(); v++) {
-	//		glm::vec4 worldPos = transform * glm::vec4(localSphere.verts[v], 1.0f);
-	//		//glm::vec4 worldPos = glm::vec4(localSphere.verts[v], 1.0f);
-	//		sphere.verts.push_back(glm::vec3(worldPos));
-
-	//		//glm::vec3 worldNormal = glm::normalize(normalMatrix * localSphere.normals[v]); // transforming the normals -> don't do that to visualize rotation
-	//		//glm::vec3 normalShade = worldNormal * 0.5f + 0.5f; 
-	//		glm::vec3 normalShade = localSphere.normals[v] * 0.5f + 0.5f;
-	//		sphere.cols.push_back(normalShade);
-
-	//		// to draw normals 
-	//		glm::vec3 worldNormal = glm::normalize(normalMatrix * localSphere.normals[v]);
-	//		unsigned int lineOffset = (unsigned int)result.normals.verts.size();
-	//		result.normals.verts.push_back(worldPos);
-	//		result.normals.verts.push_back(glm::vec3(worldPos) + worldNormal * normalLength);
-	//		result.normals.cols.push_back(glm::vec3(1, 0, 0));
-	//		result.normals.cols.push_back(glm::vec3(1, 0, 0));
-	//		result.normals.indices.push_back(lineOffset);
-	//		result.normals.indices.push_back(lineOffset + 1);
-	//	}
-
-	//	glm::vec3 transformedCenter = glm::vec3(transform * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-
-	//	unsigned int indexOffset = (unsigned int)result.spheres.verts.size();
-	//	result.spheres.verts.insert(result.spheres.verts.end(), sphere.verts.begin(), sphere.verts.end());
-	//	result.spheres.cols.insert(result.spheres.cols.end(), sphere.cols.begin(), sphere.cols.end());
-	//	for (unsigned int idx : sphere.indices) {
-	//		result.spheres.indices.push_back(idx + indexOffset);
-	//	}
-
-	//	unsigned int lineOffset = (unsigned int)result.connectors.verts.size();
-	//	result.connectors.verts.push_back(originalPos);
-	//	result.connectors.verts.push_back(transformedCenter);
-	//	result.connectors.cols.push_back(glm::vec3(0, 0, 1));
-	//	result.connectors.cols.push_back(glm::vec3(0, 0, 1));
-	//	result.connectors.indices.push_back(lineOffset);
-	//	result.connectors.indices.push_back(lineOffset + 1);
-	//}
 
 	return result;
 }

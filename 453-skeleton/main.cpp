@@ -40,6 +40,10 @@ glm::vec3 cameraTarget = glm::vec3(0.0f, 0.70f, 0.0f);
 
 Camera* camera = new Camera(cameraStart, cameraTarget);
 
+static bool isDragging = false;
+static double lastX = 0.0, lastY = 0.0;
+static const float panSpeed = 0.005f; // tune, or see step 3 for a better version
+
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 	if (camera) {
 		camera->processScroll(static_cast<float>(yoffset));
@@ -68,7 +72,6 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 			gSharedState.projMatrix,
 			viewport
 		);
-
 		//std::cout << "World position: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
 	}
 	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
@@ -95,6 +98,15 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 
 		std::cout << "World position: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
 	}
+	if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
+		if (action == GLFW_PRESS) {
+			isDragging = true;
+			glfwGetCursorPos(window, &lastX, &lastY);
+		}
+		else if (action == GLFW_RELEASE) {
+			isDragging = false;
+		}
+	}
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -114,6 +126,23 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			camera->moveCamera(glm::vec3(moveSpeed, 0.0f, 0.0f));
 		}
 	}
+}
+
+void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
+    if (!isDragging) return;
+
+    double dx = xpos - lastX;
+    double dy = ypos - lastY;
+    lastX = xpos;
+    lastY = ypos;
+
+    glm::mat4& view = gSharedState.viewMatrix;
+    glm::vec3 right(view[0][0], view[1][0], view[2][0]);
+    glm::vec3 up   (view[0][1], view[1][1], view[2][1]);
+
+	glm::vec3 offset = ((float)dx * panSpeed) * right + (-(float)dy * panSpeed) * up;
+
+    camera->moveCamera(offset);
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -207,6 +236,8 @@ int main(int argc, char* argv[]) {
 		glfwSetMouseButtonCallback(window, mouseButtonCallback);
 		glfwSetScrollCallback(window, scroll_callback);
 		glfwSetKeyCallback(window, keyCallback);
+		glfwSetMouseButtonCallback(window, mouseButtonCallback);
+		glfwSetCursorPosCallback(window, cursorPosCallback);
 		glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 		glEnable(GL_DEPTH_TEST);
@@ -223,6 +254,9 @@ int main(int argc, char* argv[]) {
 		float deltaTime = sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
 		//sim.setVisualization();
 		//float lastTime = glfwGetTime();
+
+		bool grow = true;
+
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -237,21 +271,30 @@ int main(int argc, char* argv[]) {
 
 			glUseProgram(shader);
 			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
-
-			sim.handleGKey(deltaTime);
-			sim.handleSKey();
+			if (grow) {
+				sim.handleGKey(deltaTime);
+				grow = false;
+			}
+			else {
+				sim.handleSKey();
+				sim.handleAKey(deltaTime);
+				grow = true;
+			}
 			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
 			clickedToRemove = false;
 			sim.handleAddBranchClick(worldPos, clickedToAdd, false);
 			clickedToAdd = false;
 			sim.handleAKey(deltaTime);
-			if (sim.g_pressed) {
+			/*if (sim.g_pressed) {
 				sim.animateRebuild(deltaTime);
-			}
+			}*/
 
 			// instructions for simulations
 			//sim.simulationInstructions(deltaTime);
 			sim.updateSimulation();
+			if (sim.g_pressed) {
+				sim.animateRebuild(deltaTime);
+			}
 
 			sim.clearGeometry();
 			sim.rebuildBranchGeometry();
@@ -277,8 +320,8 @@ int main(int argc, char* argv[]) {
 			glDrawArrays(GL_POINTS, 0, sim.mappingLines.verts.size());
 			draw(GL_LINES, sim.mappingLines.verts.size(), sim.mappingLines.indices.size());
 
-			sim.screenshot(window);   // have to call after scene is rendered
-			sim.saveContourGeometry(window);
+			//sim.screenshot(window);   // have to call after scene is rendered
+			//sim.saveContourGeometry(window);
 
 			// visualization
 			// Spheres
@@ -289,6 +332,14 @@ int main(int argc, char* argv[]) {
 			updateBuffers(sim.contourMarkers.connectors.verts, sim.contourMarkers.connectors.cols, sim.contourMarkers.connectors.indices);
 			glLineWidth(1.5f);
 			glDrawElements(GL_LINES, sim.contourMarkers.connectors.indices.size(), GL_UNSIGNED_INT, 0);
+			sim.screenshot(window);   // have to call after scene is rendered
+			sim.saveContourGeometry(window);
+			// reference circles
+			glDisable(GL_DEPTH_TEST);
+			updateBuffers(sim.contourMarkers.referenceCircles.verts, sim.contourMarkers.referenceCircles.cols, sim.contourMarkers.referenceCircles.indices);
+			glLineWidth(1.5f);
+			glDrawElements(GL_LINES, sim.contourMarkers.referenceCircles.indices.size(), GL_UNSIGNED_INT, 0);
+			glEnable(GL_DEPTH_TEST);
 			//// sphere normals
 			//updateBuffers(sim.contourMarkers.normals.verts, sim.contourMarkers.normals.cols, sim.contourMarkers.normals.indices);
 			//glLineWidth(1.5f);

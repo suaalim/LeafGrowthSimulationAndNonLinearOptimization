@@ -14,6 +14,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../thirdparty/stb/stb_image_write.h"
 #include "GLDebug.h"
+#include <glm/gtx/string_cast.hpp>
 
 void Simulation::accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
 	branchingStructure.push_back(root);
@@ -52,21 +53,6 @@ float Simulation::computeMainAxisLength(SceneNode* root) {
 	}
 
 	return totalLength;
-}
-
-void Simulation::splitBranch(SceneNode* root, CPU_Geometry& branchGeometry, std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs, std::vector<std::pair<SceneNode*, SceneNode*>>& newPairs, int index, std::vector<SceneNode*>& branchingStructure, bool addContour)
-{
-	pairs.clear();
-	root->labelBranches(root, pairs, index);
-	newPairs.clear();
-	index = 0;
-	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-	root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
-	//if (addContour) {
-	//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
-	//	branchingStructure.clear();
-	//	accumulateBranchingStructure(root, branchingStructure);
-	//}
 }
 
 float Simulation::init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim) {
@@ -214,21 +200,57 @@ void Simulation::simulateGrowth(float dt)
 void Simulation::simulateSubdivision()
 {
 	//while (root->divideBranch(root, 0.02f, 2.f, false)) {
-	if (root->divideBranch(root, false)) {
-		splitBranch(
-			root,
-			branchGeometry,
-			bindings,
-			pairs,
-			newPairs,
-			index = 0,
-			branchingStructure,
-			true
-		);
+	DivideBranchResult result = root->divideBranch(root, false);
+	if (result.divided) {
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		//root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
+		root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
+		//if (addContour) {
+		//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+		//	branchingStructure.clear();
+		//	accumulateBranchingStructure(root, branchingStructure);
+		//}
 		resetBool(root);
+		
 		//simulateGrowth(dt);
 		//updateSimulation(dt);
 		//if (g_pressed) animateRebuild(dt);
+	}
+}
+
+void Simulation::handleSKey()
+{
+	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S);
+	//int state = GLFW_PRESS;
+
+	if (state == GLFW_PRESS) {
+		DivideBranchResult result = root->divideBranch(root, false);
+		if (result.divided) {
+			pairs.clear();
+			root->labelBranches(root, pairs, index);
+			newPairs.clear();
+			index = 0;
+			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+			//SceneNode* node = root->findMidNode(root);
+			//root->printTree(root, 0);
+			//std::cout << node->globalTransformation[3].x << ", " << node->globalTransformation[3].y << std::endl;
+			//root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
+			root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
+			//if (addContour) {
+			//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+			//	branchingStructure.clear();
+			//	accumulateBranchingStructure(root, branchingStructure);
+			//}
+			resetBool(root);
+		}
+	}
+
+	if (state == GLFW_RELEASE) {
+		sPressed = false;
 	}
 }
 
@@ -238,20 +260,24 @@ void Simulation::simulateSubdivision()
 //
 //	if (state == GLFW_PRESS) {
 //
-//		if (root->divideBranch(root, 0.01f, 2.f, false)) {
-//
-//			splitBranch(
-//				root,
-//				branchGeometry,
-//				bindings,
-//				pairs,
-//				newPairs,
-//				index = 0,
-//				branchingStructure,
-//				true
-//			);
-//
-//			resetBool(root);
+//		if (!sPressed) {  // ensures "once per press"
+//			sPressed = true;
+//			DivideBranchResult result = root->divideBranch(root, false);
+//			if (result.divided) {
+//				pairs.clear();
+//				root->labelBranches(root, pairs, index);
+//				newPairs.clear();
+//				index = 0;
+//				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+//				//root->rebindContourWithBrokenBranch(root->findMidNode(root), newPairs, index, bindings);
+//				root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
+//				//if (addContour) {
+//				//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
+//				//	branchingStructure.clear();
+//				//	accumulateBranchingStructure(root, branchingStructure);
+//				//}
+//				resetBool(root);
+//			}
 //		}
 //	}
 //
@@ -259,36 +285,6 @@ void Simulation::simulateSubdivision()
 //		sPressed = false;
 //	}
 //}
-
-void Simulation::handleSKey()
-{
-	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S);
-
-	if (state == GLFW_PRESS) {
-
-		if (!sPressed) {  // ensures "once per press"
-			sPressed = true;
-
-			if (root->divideBranch(root, false)) {
-				splitBranch(
-					root,
-					branchGeometry,
-					bindings,
-					pairs,
-					newPairs,
-					index = 0,
-					branchingStructure,
-					true
-				);
-				resetBool(root);
-			}
-		}
-	}
-
-	if (state == GLFW_RELEASE) {
-		sPressed = false;
-	}
-}
 
 void Simulation::pressSKey(int state)
 {
@@ -447,8 +443,15 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 				pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
 			else
 				pointToBreak = root->findBestBinding(root, c->contourPoint);
-			if (root->splitAtBinding(&pointToBreak))
-				splitBranch(root, branchGeometry, bindings, pairs, newPairs, index = 0, branchingStructure, false);
+			DivideBranchResult result = root->splitAtBinding(&pointToBreak);
+			if (result.divided)
+				pairs.clear();
+				root->labelBranches(root, pairs, index);
+				newPairs.clear();
+				index = 0;
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+				//root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
+				root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
 			// add new branch
 			SceneNode* newNode = root->addNewBranch(root, c, maxID);
 			pairs.clear();
@@ -493,8 +496,8 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 
 void Simulation::handleAKey(float dt)
 {
-	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_A);
-
+	//int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_A);
+	int state = GLFW_PRESS;
 	if (state == GLFW_PRESS)
 	{
 		std::vector<ContourBinding*> firstHalf;

@@ -49,17 +49,6 @@ public:
 	void saveContourGeometry(GLFWwindow* window);
 	void handleAKey(float dt);
 	void simulationInstructions(float dt);
-
-	void splitBranch(
-		SceneNode* root,
-		CPU_Geometry& branchGeometry,
-		std::vector<ContourBinding>& bindings,
-		std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs,
-		std::vector<std::pair<SceneNode*, SceneNode*>>& newPairs,
-		int index,
-		std::vector<SceneNode*>& branchingStructure,
-		bool addContour
-	);
 	float computeMainAxisLength(SceneNode* root);
 	void resetBool(SceneNode* root);
 	void accumulateBranchingStructure(

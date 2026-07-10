@@ -73,6 +73,17 @@ struct Branch {
 	std::vector<SceneNode*> nodes; // full path root -> leaf
 };
 
+struct DivisionResult {
+	SceneNode* node;    
+	SceneNode* midNode;  
+	SceneNode* child;    
+};
+
+struct DivideBranchResult {
+	bool divided;
+	std::vector<DivisionResult> results;
+};
+
 // SceneNode for Scene Graph
 class SceneNode {
 public:
@@ -101,13 +112,19 @@ public:
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
 	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
 	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings);
-	bool divideBranch(SceneNode* node, bool bidirectionalGrowth);
-	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
+	//bool divideBranch(SceneNode* node, bool bidirectionalGrowth);
+	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
+	SceneNode* findMidNode(SceneNode* root);
+	SceneNode* findSplitNode(SceneNode* root);
+	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings);
+	//void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
+	//void rebindContourWithBrokenBranch(SceneNode* midNode, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
 	ContourBinding findBestBindingPerpendicular(SceneNode* root, const glm::vec3& contourPoint);
-	bool splitAtBinding(ContourBinding* pointToBreak);
+	//bool splitAtBinding(ContourBinding* pointToBreak);
+	DivideBranchResult splitAtBinding(ContourBinding* pointToBreak);
 	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
