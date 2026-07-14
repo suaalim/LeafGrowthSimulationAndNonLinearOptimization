@@ -55,7 +55,7 @@ float Simulation::computeMainAxisLength(SceneNode* root) {
 	return totalLength;
 }
 
-float Simulation::init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim) {
+void Simulation::init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim) {
 	std::string lower = path;
 	std::transform(lower.begin(), lower.end(), lower.begin(),
 		[](unsigned char c) { return std::tolower(c); });
@@ -103,8 +103,6 @@ float Simulation::init(const std::string& path, bool isTxt, const std::string& n
 	auto grouped = root->contourCatmullRomGrouped(contour, pairs);
 
 	bindings = root->bindInterpolatedContourToBranches(grouped);
-
-	return root->deltaTime;
 }
 
 void Simulation::clearGeometry() {
@@ -157,6 +155,7 @@ void Simulation::rebuildContourGeometry()
 	for (size_t i = 0; i < contourGeometry.verts.size(); i++) {
 		contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 	}
+
 }
 
 void Simulation::rebuildDebugGeometry()
@@ -196,7 +195,6 @@ void Simulation::simulateGrowth(float dt)
 	);
 }
 
-
 void Simulation::simulateSubdivision()
 {
 	//while (root->divideBranch(root, 0.02f, 2.f, false)) {
@@ -224,8 +222,13 @@ void Simulation::simulateSubdivision()
 
 void Simulation::handleSKey()
 {
-	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S);
-	//int state = GLFW_PRESS;
+	int state;
+	if (root->subdivideBranch) {
+		state = GLFW_PRESS;
+	}
+	else {
+		state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S);
+	}
 
 	if (state == GLFW_PRESS) {
 		DivideBranchResult result = root->divideBranch(root, false);
@@ -481,9 +484,9 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			}
 
 			root->reorganizeChildrenLeft(root);
-			std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
+			std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf, true);
 			root->reorganizeChildrenRight(root);
-			std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
+			std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf, true);
 			resetBool(root);
 
 			// update transformation for prev frame (delta time = 0)
@@ -494,26 +497,41 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 	}
 }
 
+// global rebinding
 void Simulation::handleAKey(float dt)
 {
-	//int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_A);
-	int state = GLFW_PRESS;
+	int state;
+	if (root->rebindEveryFrame) {
+		state = GLFW_PRESS;
+	}
+	else {
+		state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_A);
+	}
+
 	if (state == GLFW_PRESS)
 	{
 		std::vector<ContourBinding*> firstHalf;
-		for (int i = 0; i <= bindings.size() / 2; i++) {
+		for (int i = 1; i <= bindings.size() / 2; i++) {
 			firstHalf.push_back(&bindings[i]);
 		}
 		std::vector<ContourBinding*> secondHalf;
-		for (int i = bindings.size() - 1; i >= bindings.size() / 2; i--) {
+		for (int i = bindings.size() - 2; i >= bindings.size() / 2; i--) {
 			secondHalf.push_back(&bindings[i]);
 		}
 		root->reorganizeChildrenLeft(root);
-		std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
+		std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf, true);
 		root->reorganizeChildrenRight(root);
-		std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
+		std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf, true);
 		resetBool(root);
 	}
+}
+
+float Simulation::getDeltaTime() {
+	return root->deltaTime;
+}
+
+bool Simulation::getPerpendicularBranch() {
+	return root->perpendicularBranch;
 }
 
 void saveScreenshot(int width, int height) {
@@ -745,4 +763,8 @@ void Simulation::setVisualization() {
 
 void Simulation::visualization() {
 	contourMarkers = buildContourMarkers(contourGeometry, bindings, contourMarkerKeys, 0.03f);
+	//std::vector<size_t> markerKeys;
+	//if (bindings.size() > 21) markerKeys.push_back(bindings[21].uniqueKey);
+	//if (bindings.size() > 11) markerKeys.push_back(bindings[11].uniqueKey);
+	//contourMarkers = buildContourMarkers(contourGeometry, bindings, markerKeys, 0.03f);
 }

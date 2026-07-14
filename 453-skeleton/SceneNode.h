@@ -61,7 +61,7 @@ struct ContourBinding {
 	glm::mat4 previousAnimateInverse;
 	bool newBranchBinding = false;
 	float blending;
-	int uniqueKey;
+	int uniqueKey = 0;
 	// compute normal direction
 	glm::vec3 normalDirection = glm::vec3(0.f);
 	float normalFactor = 0.05f;
@@ -146,14 +146,10 @@ public:
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
 	void rebindContourPointsLargeBinding(std::vector<ContourBinding>& bindings, SceneNode* root);
 	std::vector<ContourBinding> addContourPointsLargeBinding(std::vector<ContourBinding>& bindings);
-	void validateBindingsDFS(
-		SceneNode* node,
-		std::vector<ContourBinding*>& bindings,
-		int& contourPos,
-		std::vector<std::pair<int, BranchKey>>& misorientedPoints);
 	std::vector<std::pair<int, BranchKey>> findMisorientedContourIndices(
 		SceneNode* root,
-		std::vector<ContourBinding*>& bindings);
+		std::vector<ContourBinding*>& bindings,
+		bool rebindEveryFrame);
 	void saveBranchGeometry(CPU_Geometry& outGeometry);
 	void readNewBranchParameter();
 	void readSimulationParameter();
@@ -185,7 +181,11 @@ public:
 	int axisID = 0;
 	glm::quat localRotation;
 	float deltaTime = 0.0f;
-	int contourKey;
+	bool subdivideBranch = false; // 0 for false, 1 for true
+	bool rebindEveryFrame = false; // 0 for false, 1 for true
+	bool perpendicularBranch = false; // 0 for false, 1 for true
+	int contourKey = 0;
+
 private:
 	// T trasformation (rest pose)
 	glm::mat4 localTranslation;
@@ -226,5 +226,6 @@ private:
 	float newBindingPointThreshold = 0.0f;
 	float rebindContourDistance = 0.0f;
 	int pointsPerSegment = 0;
+	int bestBindingStep = 0;
 };
 

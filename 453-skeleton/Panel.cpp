@@ -76,13 +76,17 @@ SphereMesh generateSphere(float radius, int stacks, int slices) {
 }
 
 void updateMarkerKeys(const std::vector<ContourBinding>& bindings, int stride, std::vector<size_t>& markerKeys) {
-	size_t n = bindings.size();
+	//size_t n = bindings.size();
 
-	while (true) {    
-		size_t targetIndex = markerKeys.size() + (size_t)stride;
-		if (targetIndex >= n) break;
-		markerKeys.push_back(bindings[targetIndex].uniqueKey);  // store contour points (key) to draw sphere
-	}
+	//while (true) {    
+	//	size_t targetIndex = markerKeys.size() + (size_t)stride;
+	//	if (targetIndex >= n) break;
+	//	markerKeys.push_back(bindings[targetIndex].uniqueKey);  // store contour points (key) to draw sphere
+	//}
+	markerKeys.push_back(bindings[11].uniqueKey);
+	markerKeys.push_back(bindings[10].uniqueKey);
+	markerKeys.push_back(bindings[6].uniqueKey);
+	markerKeys.push_back(bindings[5].uniqueKey);
 }
 
 ContourMarkerResult buildContourMarkers(const CPU_Geometry& contourGeometry, std::vector<ContourBinding>& bindings, const std::vector<size_t>& markerKeys, float radius) {

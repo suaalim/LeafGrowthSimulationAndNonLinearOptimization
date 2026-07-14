@@ -114,16 +114,16 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 
 	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
 		if (key == GLFW_KEY_UP) {
-			camera->moveCamera(glm::vec3(0.0f, moveSpeed, 0.0f));
-		}
-		else if (key == GLFW_KEY_DOWN) {
 			camera->moveCamera(glm::vec3(0.0f, -moveSpeed, 0.0f));
 		}
+		else if (key == GLFW_KEY_DOWN) {
+			camera->moveCamera(glm::vec3(0.0f, moveSpeed, 0.0f));
+		}
 		else if (key == GLFW_KEY_LEFT) {
-			camera->moveCamera(glm::vec3(-moveSpeed, 0.0f, 0.0f));
+			camera->moveCamera(glm::vec3(moveSpeed, 0.0f, 0.0f));
 		}
 		else if (key == GLFW_KEY_RIGHT) {
-			camera->moveCamera(glm::vec3(moveSpeed, 0.0f, 0.0f));
+			camera->moveCamera(glm::vec3(-moveSpeed, 0.0f, 0.0f));
 		}
 	}
 }
@@ -251,12 +251,12 @@ int main(int argc, char* argv[]) {
 
 		Simulation sim;
 		isTxt = true;
-		float deltaTime = sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
+		sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
 		//sim.setVisualization();
 		//float lastTime = glfwGetTime();
-
-		bool grow = true;
-
+		float deltaTime = sim.getDeltaTime();
+		bool grow = true;  // cannot grow and subdivide at the same time
+		bool perpendicularBranch = sim.getPerpendicularBranch();
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -282,7 +282,7 @@ int main(int argc, char* argv[]) {
 			}
 			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
 			clickedToRemove = false;
-			sim.handleAddBranchClick(worldPos, clickedToAdd, false);
+			sim.handleAddBranchClick(worldPos, clickedToAdd, perpendicularBranch);
 			clickedToAdd = false;
 			sim.handleAKey(deltaTime);
 			/*if (sim.g_pressed) {
@@ -332,14 +332,14 @@ int main(int argc, char* argv[]) {
 			updateBuffers(sim.contourMarkers.connectors.verts, sim.contourMarkers.connectors.cols, sim.contourMarkers.connectors.indices);
 			glLineWidth(1.5f);
 			glDrawElements(GL_LINES, sim.contourMarkers.connectors.indices.size(), GL_UNSIGNED_INT, 0);
-			sim.screenshot(window);   // have to call after scene is rendered
-			sim.saveContourGeometry(window);
 			// reference circles
 			glDisable(GL_DEPTH_TEST);
 			updateBuffers(sim.contourMarkers.referenceCircles.verts, sim.contourMarkers.referenceCircles.cols, sim.contourMarkers.referenceCircles.indices);
 			glLineWidth(1.5f);
 			glDrawElements(GL_LINES, sim.contourMarkers.referenceCircles.indices.size(), GL_UNSIGNED_INT, 0);
 			glEnable(GL_DEPTH_TEST);
+			sim.screenshot(window);   // have to call after scene is rendered
+			sim.saveContourGeometry(window);
 			//// sphere normals
 			//updateBuffers(sim.contourMarkers.normals.verts, sim.contourMarkers.normals.cols, sim.contourMarkers.normals.indices);
 			//glLineWidth(1.5f);

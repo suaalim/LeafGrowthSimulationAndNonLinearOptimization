@@ -22,7 +22,7 @@ public:
 
 	bool g_pressed = false;
 
-	float init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim);
+	void init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim);
 
 	void stepHeadless(float dt, float length);
 
@@ -34,6 +34,9 @@ public:
 	void clearGeometry();
 	void setVisualization();
 	void visualization();
+
+	float getDeltaTime();
+	bool getPerpendicularBranch();
 
 	void handleSKey();
 	void pressSKey(int state);

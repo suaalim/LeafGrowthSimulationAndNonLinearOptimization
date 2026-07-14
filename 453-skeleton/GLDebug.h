@@ -49,7 +49,11 @@ public:
 	float getNewBindingPointThreshold() const { return newBindingPointThreshold; }
 	float getRebindContourDistance() const { return rebindContourDistance; }
 	float getDeltaTime() const { return deltaTime; }
-	float getPointsPerSegment() const { return pointsPerSegment; }
+	int getPointsPerSegment() const { return pointsPerSegment; }
+	int getBestBindingStep() const { return bestBindingStep; }
+	int getsubdivideBranch() const { return subdivideBranch; }
+	int getRebindEveryFrame() const { return rebindEveryFrame; }
+	int getPerpendicularBranch() const { return perpendicularBranch; }
 
 private:
 	SimulationConfig() = default;
@@ -61,6 +65,10 @@ private:
 	float rebindContourDistance = 0.0f;
 	float deltaTime = 0.0f;
 	int pointsPerSegment = 0;
+	int bestBindingStep = 0;
+	int subdivideBranch = 0; // 0 for false, 1 for true
+	int rebindEveryFrame = 0; // 0 for false, 1 for true
+	int perpendicularBranch = 0; // 0 for false, 1 for true
 };
 
 

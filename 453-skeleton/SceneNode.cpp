@@ -190,6 +190,10 @@ void SceneNode::readSimulationParameter() {
 	rebindContourDistance = config.getRebindContourDistance();
 	deltaTime = config.getDeltaTime();
 	pointsPerSegment = config.getPointsPerSegment();
+	bestBindingStep = config.getBestBindingStep();
+	subdivideBranch = static_cast<bool>(config.getsubdivideBranch());
+	rebindEveryFrame = static_cast<bool>(config.getRebindEveryFrame());
+	perpendicularBranch = static_cast<bool>(config.getPerpendicularBranch());
 }
 
 // branching structure parameter
@@ -661,99 +665,99 @@ DivideBranchResult SceneNode::divideBranch(SceneNode* node, bool bidirectionalGr
 //	return false;
 //}
 
-// find the branch that was divided
-void getBranchSegmentsFromBinding(
-	SceneNode* current,
-	SceneNode* targetChild,
-	std::vector<std::pair<SceneNode*, SceneNode*>>& segments,
-	bool& found
-) {
-	if (!current || found) return;
-
-	if (current == targetChild) {
-		found = true;
-		return;
-	}
-
-	// recursively find the divided branch from the parent
-	for (SceneNode* child : current->children) {
-		segments.push_back({ current, child });
-		getBranchSegmentsFromBinding(child, targetChild, segments, found);
-		if (found) return;
-		// if child path didn't reach targetChild, backtrack
-		segments.pop_back();
-	}
-}
-
-std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3, bool> findClosestPointBranch(std::vector<std::pair<SceneNode*, SceneNode*>>& segments, ContourBinding* contour, bool& found) {
-	SceneNode* p;
-	SceneNode* c;
-	float finalT;
-	float finalBlending;
-
-	// only rebind if the point's branch has been divided
-	if (contour->childNode->midBranch && contour->parentNode->midBranch) {
-		// find the divided segments
-		getBranchSegmentsFromBinding(contour->parentNode, contour->childNode, segments, found);
-		//std::cout << segments.size() << std::endl;
-		// special case, needed for floating point error
-		if (contour->t == 0) {
-			for (const auto& [parent, child] : segments) {
-				if (parent == contour->parentNode) {
-					p = parent;
-					c = child;
-					finalT = contour->t;
-					finalBlending = contour->blending;
-				}
-			}
-		}
-		else if (contour->t == 1) {
-			for (const auto& [parent, child] : segments) {
-				if (child == contour->childNode) {
-					p = parent;
-					c = child;
-					finalT = contour->t;
-					finalBlending = contour->blending;
-				}
-			}
-		}
-		else {
-			float bestDistSq = FLT_MAX;
-
-			for (const auto& [parent, child] : segments) {
-				glm::vec3 p1 = glm::vec3(parent->globalTransformation[3]);
-				glm::vec3 p2 = glm::vec3(child->globalTransformation[3]);
-
-				// raw t, then clamp to the actual segment range
-				float tRaw = calculateT(p1, p2, contour->closestPoint);
-				float tClamped = glm::clamp(tRaw, 0.0f, 1.0f);
-
-				// closest point ON the segment (not on the infinite line)
-				glm::vec3 projected = p1 + tClamped * (p2 - p1);
-				float distSq = glm::dot(contour->closestPoint - projected,
-					contour->closestPoint - projected);
-
-				if (distSq < bestDistSq) {
-					bestDistSq = distSq;
-					p = parent;
-					c = child;
-					finalT = tClamped;
-					finalBlending = glm::clamp(
-						calculateBlending(p1, p2, contour->closestPoint), 0.0f, 1.0f);
-				}
-			}
-		}
-	}
-	// otherwise, keep it the same
-	else {
-		p = contour->parentNode;
-		c = contour->childNode;
-		finalT = contour->t;
-		finalBlending = contour->blending;
-	}
-
-	return std::make_tuple(p, c, finalT, finalBlending, contour->closestPoint, found);
-}
+//// find the branch that was divided
+//void getBranchSegmentsFromBinding(
+//	SceneNode* current,
+//	SceneNode* targetChild,
+//	std::vector<std::pair<SceneNode*, SceneNode*>>& segments,
+//	bool& found
+//) {
+//	if (!current || found) return;
+//
+//	if (current == targetChild) {
+//		found = true;
+//		return;
+//	}
+//
+//	// recursively find the divided branch from the parent
+//	for (SceneNode* child : current->children) {
+//		segments.push_back({ current, child });
+//		getBranchSegmentsFromBinding(child, targetChild, segments, found);
+//		if (found) return;
+//		// if child path didn't reach targetChild, backtrack
+//		segments.pop_back();
+//	}
+//}
+//
+//std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3, bool> findClosestPointBranch(std::vector<std::pair<SceneNode*, SceneNode*>>& segments, ContourBinding* contour, bool& found) {
+//	SceneNode* p;
+//	SceneNode* c;
+//	float finalT;
+//	float finalBlending;
+//
+//	// only rebind if the point's branch has been divided
+//	if (contour->childNode->midBranch && contour->parentNode->midBranch) {
+//		// find the divided segments
+//		getBranchSegmentsFromBinding(contour->parentNode, contour->childNode, segments, found);
+//		//std::cout << segments.size() << std::endl;
+//		// special case, needed for floating point error
+//		if (contour->t == 0) {
+//			for (const auto& [parent, child] : segments) {
+//				if (parent == contour->parentNode) {
+//					p = parent;
+//					c = child;
+//					finalT = contour->t;
+//					finalBlending = contour->blending;
+//				}
+//			}
+//		}
+//		else if (contour->t == 1) {
+//			for (const auto& [parent, child] : segments) {
+//				if (child == contour->childNode) {
+//					p = parent;
+//					c = child;
+//					finalT = contour->t;
+//					finalBlending = contour->blending;
+//				}
+//			}
+//		}
+//		else {
+//			float bestDistSq = FLT_MAX;
+//
+//			for (const auto& [parent, child] : segments) {
+//				glm::vec3 p1 = glm::vec3(parent->globalTransformation[3]);
+//				glm::vec3 p2 = glm::vec3(child->globalTransformation[3]);
+//
+//				// raw t, then clamp to the actual segment range
+//				float tRaw = calculateT(p1, p2, contour->closestPoint);
+//				float tClamped = glm::clamp(tRaw, 0.0f, 1.0f);
+//
+//				// closest point ON the segment (not on the infinite line)
+//				glm::vec3 projected = p1 + tClamped * (p2 - p1);
+//				float distSq = glm::dot(contour->closestPoint - projected,
+//					contour->closestPoint - projected);
+//
+//				if (distSq < bestDistSq) {
+//					bestDistSq = distSq;
+//					p = parent;
+//					c = child;
+//					finalT = tClamped;
+//					finalBlending = glm::clamp(
+//						calculateBlending(p1, p2, contour->closestPoint), 0.0f, 1.0f);
+//				}
+//			}
+//		}
+//	}
+//	// otherwise, keep it the same
+//	else {
+//		p = contour->parentNode;
+//		c = contour->childNode;
+//		finalT = contour->t;
+//		finalBlending = contour->blending;
+//	}
+//
+//	return std::make_tuple(p, c, finalT, finalBlending, contour->closestPoint, found);
+//}
 
 //void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings) {
 //	i = 0;
@@ -804,17 +808,6 @@ void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<Divis
 				//break;
 			}
 		}
-		//float length1 = glm::length(binding.childNode->globalTransformation[3] - binding.parentNode->globalTransformation[3]);
-		//float length2 = glm::length(matchedResult->midNode->globalTransformation[3] - binding.parentNode->globalTransformation[3]);
-		//float percentage = length2 / length1;    // this is wrong -> floating point error
-		//if (i == 19) {
-		//	std::cout << glm::vec3(binding.parentNode->globalTransformation[3]) << std::endl;
-		//	std::cout << glm::vec3(matchedResult->node->globalTransformation[3]) << std::endl;
-		//	std::cout << glm::vec3(binding.childNode->globalTransformation[3]) << std::endl;
-		//	std::cout << glm::vec3(matchedResult->child->globalTransformation[3]) << std::endl;
-		//	std::cout << binding.t << std::endl; // 0.38
-		//	std::cout << percentage << std::endl; // 0.36
-		//}
 		if (found) {
 			double length1 = glm::length(glm::vec3(binding.childNode->globalTransformation[3] - binding.parentNode->globalTransformation[3]));
 			double length2 = glm::length(glm::vec3(matchedResult->midNode->globalTransformation[3] - binding.parentNode->globalTransformation[3]));
@@ -832,11 +825,6 @@ void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<Divis
 				binding.blending = binding.t;
 				binding.closestPoint = calculateClosestPoint(binding);
 				binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
-				//if (i == 19) {
-				//	std::cout << binding.t << std::endl;
-				//	std::cout << glm::vec3(binding.parentNode->globalTransformation[3]) << std::endl;
-				//	std::cout << glm::vec3(binding.childNode->globalTransformation[3]) << std::endl;
-				//}
 			}
 			else { // point bound exactly at split point
 				binding.childNode = matchedResult->midNode;
@@ -845,13 +833,6 @@ void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<Divis
 				binding.closestPoint = calculateClosestPoint(binding);
 				binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
 			}
-			//if (i == 19) {
-			//	binding.childNode = matchedResult->midNode;
-			//	binding.t = 1.f;
-			//	binding.blending = binding.t;
-			//	binding.closestPoint = calculateClosestPoint(binding);
-			//	binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
-			//}
 		}
 		else {
 			//binding.closestPoint = calculateClosestPoint(binding);
@@ -1062,7 +1043,7 @@ ContourBinding SceneNode::findBestBindingPerpendicular(SceneNode* root, const gl
 // finds the best location on any existing branch to attach a new branch
 // visits every parent-child relationship
 // so it is not necessarily on the branch that contourPoint is bound to
-ContourBinding SceneNode::findBestBinding(SceneNode* root, const glm::vec3& contourPoint) {
+ContourBinding SceneNode::findBestBinding(SceneNode* root, const glm::vec3& contourPoint) {  // works with subdivided branch
 	ContourBinding bestBinding;
 	float minTotalDistance = std::numeric_limits<float>::max();
 
@@ -1073,7 +1054,7 @@ ContourBinding SceneNode::findBestBinding(SceneNode* root, const glm::vec3& cont
 			glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
 			glm::vec3 dir = childPos - parentPos;
 
-			const int steps = 100;
+			const int steps = bestBindingStep;
 			for (int i = 0; i <= steps; i++) {
 				float t = static_cast<float>(i) / steps;
 
@@ -1161,7 +1142,7 @@ DivideBranchResult SceneNode::splitAtBinding(ContourBinding* pointToBreak)
 		float distance = glm::length(childPos - parentPos);
 
 		// check whether a node already exists at (or very near) the split point
-		SceneNode* existingNode = findExistingNodeNear(this, pointToBreak->closestPoint, 1e-2f);
+		SceneNode* existingNode = findExistingNodeNear(this, pointToBreak->closestPoint, 1e-2f);  // works with subdivided branch
 
 		// don't create a mid node (just use the existing one)
 		if (existingNode) {
@@ -1180,6 +1161,7 @@ DivideBranchResult SceneNode::splitAtBinding(ContourBinding* pointToBreak)
 			return { dividedLocal, results };
 		}
 
+		// else, create
 		SceneNode* midNode = new SceneNode();
 
 		// break in the closest point of the branch found in bindBestBinding (the projection of the point that minimizes totalDistance)
@@ -1210,6 +1192,10 @@ DivideBranchResult SceneNode::splitAtBinding(ContourBinding* pointToBreak)
 		child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 		child->animationScaling = 1;
 		child->animateScaling = glm::mat4(1.0);
+		child->expansion = glm::mat4(1.f);
+		child->expansionAmount = 1.f;
+		child->growth = glm::mat4(1.f);
+		child->growthAmount = 1.f;
 
 		midNode->addChild(child);
 		midNode->parent = node;
@@ -1735,6 +1721,10 @@ void calculateRebinding(std::vector<ContourBinding*>& bindings, const std::vecto
 {
 	glm::vec3 startNode = start->globalTransformation[3];
 	glm::vec3 endNode = end->globalTransformation[3];
+	//std::cout << startNode << std::endl;
+	//std::cout << endNode << std::endl;
+	//std::cout << indices.front() << std::endl;
+	//std::cout << indices.back() << std::endl;
 
 	for (int i = 1; i <= indices.size(); i++) {
 		float t = static_cast<float>(i) / indices.size();
@@ -1759,6 +1749,7 @@ void calculateRebinding(std::vector<ContourBinding*>& bindings, const std::vecto
 				binding->closestPoint = bindingPosition;
 				binding->t = 1.f;
 				binding->blending = 1.f;
+				binding->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*binding));
 				break;
 			}
 			binding->parentNode = branch.first;
@@ -1809,15 +1800,7 @@ int findEndMarkerIndex(SceneNode* node, const std::vector<ContourBinding*>& bind
 
 	for (int i = 0; i < (int)bindings.size(); i++)
 	{
-		//std::cout << i << ", " << bindings[i]->t << ", " << glm::vec3(bindings[i]->childNode->globalTransformation[3]) << ", " << glm::vec3(node->globalTransformation[3]) << std::endl;
-		//if (i == 18) {
-		//	std::cout << bindings[i]->t << std::endl;
-		//	std::cout << glm::vec3(bindings[i]->childNode->globalTransformation[3]) << std::endl;
-		//	std::cout << glm::vec3(node->globalTransformation[3]) << std::endl;
-		//	std::cout << index << std::endl;
-		//}
 		if (bindings[i]->childNode == node && bindings[i]->t == 1 && i >= index) {
-			//std::cout << i << std::endl;
 			return i;
 		}
 	}
@@ -1831,19 +1814,27 @@ static void validateBranchBindings(
 	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
 	std::vector<ContourBinding*>& bindings,
 	int& contourPos,
-	std::vector<std::pair<int, BranchKey>>& misorientedPoints)
+	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
+	std::pair<int, int>& rebindHistory,
+	bool rebindEveryFrame)
 {
 	BranchKey currentBranch{ branchStart, branchEnd };
 	std::vector<int> indices;
 
-	int endIndex = findEndMarkerIndex(branchEnd, bindings, contourPos); // contour point bound to branchEnd
-	if (endIndex == -1)
-		return;
-	
+	int endIndex = findEndMarkerIndex(branchEnd, bindings, contourPos);
+	if (endIndex == -1) {
+		if (rebindEveryFrame) {
+			return;
+		}
+		else {
+			contourPos = rebindHistory.first;
+			endIndex = rebindHistory.second;
+		}
+
+	}
+
 	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
 	{
-		// collect all contour points
-		// call calculateRebinding on collected points & branchEdges
 		indices.push_back(contourPos);
 		//std::cout << contourPos << std::endl;
 		//const ContourBinding& b = bindings[contourPos];
@@ -1871,10 +1862,13 @@ static void validateBranchBindings(
 		//}
 		contourPos++;
 	}
-	//std::cout << glm::vec3(branchStart->globalTransformation[3]) << std::endl;
-	//std::cout << glm::vec3(branchEnd->globalTransformation[3]) << std::endl;
-	//std::cout << contourPos << std::endl;
-	//std::cout << "--------" << std::endl;
+
+	if (!indices.empty())
+	{
+		rebindHistory.first = indices.front();
+		rebindHistory.second = indices.back();
+	}
+
 	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, false);
 	//if (contourPos <= endIndex)
 	//	contourPos = endIndex + 1;
@@ -1886,19 +1880,27 @@ static void validateBranchBindingsReturn(
 	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
 	std::vector<ContourBinding*>& bindings,
 	int& contourPos,
-	std::vector<std::pair<int, BranchKey>>& misorientedPoints)
+	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
+	std::pair<int, int>& rebindHistory,
+	bool rebindEveryFrame)
 {
 	BranchKey currentBranch{ branchStart, branchEnd };
 	std::vector<int> indices;
 
-	int endIndex = findEndMarkerIndex(branchStart, bindings, contourPos);  // need to pass in the index so that it doesnt repeat the same contour point
-	if (endIndex == -1)
-		return;
+	int endIndex = findEndMarkerIndex(branchStart, bindings, contourPos);
+	if (endIndex == -1) {
+		if (rebindEveryFrame) {
+			return;
+		}
+		else {
+			contourPos = rebindHistory.first;
+			endIndex = rebindHistory.second;
+		}
+	}
 
 	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
 	{
 		indices.push_back(contourPos);
-
 		//const ContourBinding& b = bindings[contourPos];
 		//bool onBranch = false;
 
@@ -1931,16 +1933,24 @@ static void validateBranchBindingsReturn(
 		contourPos++;
 	}
 
-	//std::reverse(indices.begin(), indices.end());
-	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, true);
+	if (!indices.empty())
+	{
+		rebindHistory.first = indices.front();
+		rebindHistory.second = indices.back();
+	}
 
+	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, true);
 	//if (contourPos <= endIndex)
 	//	contourPos = endIndex + 1;
 }
 
-// stop the process when you hit the leaf of the main axis (axisID = 0)
-// to process left & right side separately
-static bool validateBindingsDFSHelper(SceneNode* node, std::vector<ContourBinding*>& bindings, int& contourPos, std::vector<std::pair<int, BranchKey>>& misorientedPoints)
+static bool validateBindingsDFSHelper(
+	SceneNode* node,
+	std::vector<ContourBinding*>& bindings,
+	int& contourPos,
+	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
+	std::pair<int, int>& rebindHistory,
+	bool rebindEveryFrame)
 {
 	if (!node)
 		return false;
@@ -1950,67 +1960,43 @@ static bool validateBindingsDFSHelper(SceneNode* node, std::vector<ContourBindin
 		std::vector<std::pair<SceneNode*, SceneNode*>> branchEdges;
 		SceneNode* branchEnd = collectBranchEdges(node, child, branchEdges);
 
-		validateBranchBindings(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
+		validateBranchBindings(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
 
-		// branchEnd is a leaf with axisID == 0
 		if (branchEnd->children.empty() && branchEnd->axisID == 0)
 		{
-			return true; // stop fully here
+			return true;
 		}
 
-		bool stop = validateBindingsDFSHelper(branchEnd, bindings, contourPos, misorientedPoints);
+		bool stop = validateBindingsDFSHelper(branchEnd, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
 		if (stop)
-			return true; // propagate stop signal upward without running validateBranchBindingsReturn
+			return true;
 
-		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
+		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
 	}
 
-	return false; 
+	return false;
 }
 
-void SceneNode::validateBindingsDFS(
+void validateBindingsDFS(
 	SceneNode* node,
 	std::vector<ContourBinding*>& bindings,
 	int& contourPos,
-	std::vector<std::pair<int, BranchKey>>& misorientedPoints)
+	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
+	std::pair<int, int>& rebindHistory,
+	bool rebindEveryFrame)
 {
-	validateBindingsDFSHelper(node, bindings, contourPos, misorientedPoints);
+	validateBindingsDFSHelper(node, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
 }
 
-//void SceneNode::validateBindingsDFS(
-//	SceneNode* node,
-//	const std::vector<ContourBinding>& bindings,
-//	int& contourPos,
-//	std::vector<std::pair<int, BranchKey>>& misorientedPoints)
-//{
-//	if (!node)
-//		return;
-//	// Say you hit a leaf node, Then validateBindingsDFS returns and processes validateBranchBindingsReturn
-//	// to come back to the branching node you started with. Then you repeat for the next child (if exists)
-//	// If there is no children left, then you exit the current recursion iteration
-//	for (SceneNode* child : node->children)
-//	{
-//		std::vector<std::pair<SceneNode*, SceneNode*>> branchEdges;
-//		SceneNode* branchEnd = collectBranchEdges(node, child, branchEdges);
-//		for (int i = 0; i < branchEdges.size(); i++) {
-//			std::cout << glm::vec3(branchEdges[i].first->globalTransformation[3]) << std::endl;
-//			std::cout << glm::vec3(branchEdges[i].second->globalTransformation[3]) << std::endl;
-//		}
-//		std::cout << "---------------" << std::endl;
-//		validateBranchBindings(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
-//		validateBindingsDFS(branchEnd, bindings, contourPos, misorientedPoints);
-//		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
-//	}
-//}
-
-// find cross over branch
 std::vector<std::pair<int, BranchKey>> SceneNode::findMisorientedContourIndices(
 	SceneNode* root,
-	std::vector<ContourBinding*>& bindings)
+	std::vector<ContourBinding*>& bindings,
+	bool rebindEveryFrame)
 {
 	std::vector<std::pair<int, BranchKey>> misorientedPoints;
+	std::pair<int, int> rebindHistory;  
 	int contourPos = 0;
-	validateBindingsDFS(root, bindings, contourPos, misorientedPoints);
+	validateBindingsDFS(root, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
 	return misorientedPoints;
 }
 
@@ -2588,7 +2574,6 @@ std::vector<ContourBinding> SceneNode::addContourPointsLargeBinding(std::vector<
 
 	return newBindingSet;
 }
-
 
 //SceneNode* findBranch(glm::vec3 closestPoint, SceneNode* node) {
 //	for (SceneNode* child : node->children) {

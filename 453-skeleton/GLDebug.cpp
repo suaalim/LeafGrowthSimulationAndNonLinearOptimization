@@ -60,6 +60,18 @@ bool SimulationConfig::load(const std::string& filename)
 		pointsPerSegment =
 			static_cast<int>(tbl["points_per_segment"].value_or(0));
 
+		bestBindingStep = 
+			static_cast<int>(tbl["best_binding_steps"].value_or(0));
+
+		subdivideBranch =
+			static_cast<int>(tbl["subdivide_branch"].value_or(0));
+
+		rebindEveryFrame =
+			static_cast<int>(tbl["rebind_every_frame"].value_or(0));
+
+		perpendicularBranch =
+			static_cast<int>(tbl["perpendicular_branch"].value_or(0));
+
 		return true;
 	}
 	catch (const toml::parse_error& err)
