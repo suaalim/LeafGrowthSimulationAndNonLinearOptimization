@@ -8,7 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
-
+#include <set>
 
 void printMat4(const glm::mat4& mat);
 // define the class before the struct since it uses the class
@@ -84,6 +84,24 @@ struct DivideBranchResult {
 	std::vector<DivisionResult> results;
 };
 
+struct ContourRegion {
+	std::vector<ContourBinding*> bindings;
+	// unique parent/child branch segments touched by this region
+	std::set<std::pair<SceneNode*, SceneNode*>> branchSegments;
+};
+
+struct BranchSubRegion {
+	SceneNode* parentNode = nullptr;
+	SceneNode* childNode = nullptr;
+	std::vector<ContourBinding*> bindings;
+	float branchLength = 0.f;
+	float percentageOfRegion = 0.f; // this branch's share of the region, by length
+};
+
+struct DividedRegion {
+	std::vector<BranchSubRegion> subRegions;
+};
+
 // SceneNode for Scene Graph
 class SceneNode {
 public:
@@ -111,11 +129,9 @@ public:
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
 	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
-	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings);
-	//bool divideBranch(SceneNode* node, bool bidirectionalGrowth);
+	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode);
+	void addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
-	SceneNode* findMidNode(SceneNode* root);
-	SceneNode* findSplitNode(SceneNode* root);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings);
 	//void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
 	//void rebindContourWithBrokenBranch(SceneNode* midNode, std::vector<ContourBinding>& bindings);
@@ -128,7 +144,6 @@ public:
 	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
-	std::vector<ContourBinding> snapContourPoints(std::vector<ContourBinding>& bindings);
 	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings);
 	bool mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode* parentToMerge, SceneNode* childToMerge);
 	void rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings);
@@ -144,12 +159,11 @@ public:
 	void reorganizeChildrenLeft(SceneNode* node);
 	void reorganizeChildrenRight(SceneNode* node);
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
-	void rebindContourPointsLargeBinding(std::vector<ContourBinding>& bindings, SceneNode* root);
 	std::vector<ContourBinding> addContourPointsLargeBinding(std::vector<ContourBinding>& bindings);
-	std::vector<std::pair<int, BranchKey>> findMisorientedContourIndices(
+	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> findMisorientedContourIndices(
 		SceneNode* root,
-		std::vector<ContourBinding*>& bindings,
-		bool rebindEveryFrame);
+		std::vector<ContourBinding*>& bindings);
+	std::vector<std::pair<int, int>> overrideRegion(std::vector<ContourBinding*>& contours);
 	void saveBranchGeometry(CPU_Geometry& outGeometry);
 	void readNewBranchParameter();
 	void readSimulationParameter();
@@ -185,6 +199,8 @@ public:
 	bool rebindEveryFrame = false; // 0 for false, 1 for true
 	bool perpendicularBranch = false; // 0 for false, 1 for true
 	int contourKey = 0;
+	int overrideIdx = -1;
+	bool overrideSide = false; // false for left, true for right
 
 private:
 	// T trasformation (rest pose)

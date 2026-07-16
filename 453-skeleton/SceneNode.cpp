@@ -31,6 +31,7 @@
 #include <unordered_set>
 #include "GLDebug.h"
 #include <queue>
+#include <set>
 
 // helper function to print the matrices for debugging purposes
 void printMat4(const glm::mat4& mat) {
@@ -1486,10 +1487,25 @@ SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour, int
 	return nullptr;
 }
 
-// finds neighboring contour bindings around a given binding c
-std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings) {
-	std::vector<ContourBinding*> result;
+bool hasChildWithDifferentAxisID(SceneNode* first, SceneNode* second)
+{
+	if (!first || !second)
+		return false;
 
+	for (SceneNode* child : first->children)
+	{
+		if (child && child->axisID != second->axisID)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// finds neighboring contour bindings around a given binding c
+std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode) {
+	std::vector<ContourBinding*> result;
 	int index = -1;
 	for (int i = 0; i < bindings.size(); i++) {
 		if (bindings[i].contourPoint == c->contourPoint) {
@@ -1498,7 +1514,20 @@ std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std
 		}
 	}
 
+	// LEFT SIDE
 	for (int i = index - 1; i >= 0; i--) {
+		// detecting override   
+		// child axisID are different where the parent axisID are the same (and make sure bindings[i] isn't bound to main axis)
+		// can only rebind if the contour point is bound to the main axis
+		//if (!(bindings[i].parentNode->axisID == bindings[i].childNode->axisID && bindings[i].parentNode->axisID == 0)) {
+		if (bindings[i].t == 1 && bindings[i].childNode->axisID == newNode->parent->axisID && bindings[i].childNode->children.size() > 1 && hasChildWithDifferentAxisID(bindings[i].childNode, newNode)) { // newNode's parent should always exist
+			std::cout << "override left, break, " << i << std::endl;
+			overrideIdx = i;
+			overrideSide = false;
+			// need to pop back the last item, because the code will recognize i to be the first point after the point bound to the branching node
+			//if (!result.empty()) result.pop_back();
+			break;
+		}
 		float dist = glm::distance(bindings[i].contourPoint, c->contourPoint);
 		if (dist <= rebindContourDistance) {
 			result.push_back(&bindings[i]);
@@ -1511,7 +1540,15 @@ std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std
 	std::reverse(result.begin(), result.end());
 	result.push_back(c);
 
+	// RIGHT SIDE
 	for (int i = index + 1; i < static_cast<int>(bindings.size()); i++) {
+		//if (bindings[i].childNode->axisID != newNode->axisID && bindings[i].parentNode->axisID == newNode->parent->axisID && bindings[i].childNode->axisID != bindings[i].parentNode->axisID) {
+		if (bindings[i].t == 1 && bindings[i].childNode->axisID == newNode->parent->axisID && bindings[i].childNode->children.size() > 1 && hasChildWithDifferentAxisID(bindings[i].childNode, newNode)) { // newNode's parent should always exist
+			std::cout << "override right, break, " << i << std::endl;
+			overrideIdx = i;
+			overrideSide = true;
+			break;
+		}
 		float dist = glm::distance(bindings[i].contourPoint, c->contourPoint);
 		if (dist <= rebindContourDistance) {
 			result.push_back(&bindings[i]);
@@ -1520,19 +1557,56 @@ std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std
 			break;
 		}
 	}
-
 	return result;
+}
+
+// function to add contour point if there is override
+void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode) {
+	if (overrideIdx != -1) { // only if there is a override index
+		if (!overrideSide) { // left
+			// new contour point right AFTER i (between i and i+1).
+			ContourBinding newBinding;
+			newBinding.parentNode = newNode->parent->parent;
+			newBinding.childNode = newNode->parent;
+			newBinding.t = 1.f;
+			newBinding.blending = 1.f;
+			newBinding.closestPoint = calculateClosestPoint(newBinding);
+			newBinding.contourPoint = glm::mix(bindings[overrideIdx].contourPoint, bindings[overrideIdx + 1].contourPoint, 0.5f);
+			newBinding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(newBinding));
+			newBinding.newBranchBinding = true;
+			newBinding.uniqueKey = contourKey + 1;
+			contourKey += 1;
+			bindings.insert(bindings.begin() + overrideIdx + 1, newBinding);
+		}
+
+		else { // right
+			// new contour point right BEFORE i.
+			ContourBinding newBinding;
+			newBinding.parentNode = newNode->parent->parent;
+			newBinding.childNode = newNode->parent;
+			newBinding.t = 1.f;
+			newBinding.blending = 1.f;
+			newBinding.closestPoint = calculateClosestPoint(newBinding);
+			newBinding.contourPoint = glm::mix(bindings[overrideIdx].contourPoint, bindings[overrideIdx - 1].contourPoint, 0.5f);
+			newBinding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(newBinding));
+			newBinding.newBranchBinding = true;
+			newBinding.uniqueKey = contourKey + 1;
+			contourKey += 1;
+			bindings.insert(bindings.begin() + overrideIdx, newBinding);
+
+		}
+	}
+	overrideIdx = -1;  // reset for next iteration
 }
 
 // rebind all the contour points that were bound to the broken branch to the new branch
 void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings) {
-	std::vector<ContourBinding*> toRebind = getNearbyBindings(contour, bindings);
+	std::vector<ContourBinding*> toRebind = getNearbyBindings(contour, bindings, newNode);
+	//std::cout << toRebind.size() << std::endl;
 	// find the exact point to bind to the new branch
 	int index = -1;
 	int leftMost = -1;
 	int rightMost = -1;
-	ContourBinding newLeftPoint;
-	ContourBinding newRightPoint;
 
 	for (int i = 0; i < toRebind.size(); i++) {
 		if (toRebind[i]->contourPoint == contour->contourPoint) {
@@ -1544,79 +1618,102 @@ void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, s
 		if (bindings[i].contourPoint == toRebind[0]->contourPoint) {
 			leftMost = i;
 		}
-		else if (bindings[i].contourPoint == toRebind[toRebind.size() - 1]->contourPoint)
+		else if (bindings[i].contourPoint == toRebind[toRebind.size() - 1]->contourPoint) {
 			rightMost = i;
+		}
 	}
 
 	if (index != -1) {
 		float leftContourDistance = glm::length(toRebind[0]->contourPoint - toRebind[index]->contourPoint);
 		for (int i = 0; i < index; i++) {
-			if (i == 0 && toRebind[i]->t == 1) { // first point is bound to a different branching node
-				newLeftPoint.parentNode = newNode->parent->parent;
-				newLeftPoint.childNode = newNode->parent;
-				newLeftPoint.blending = 1.f;
-				newLeftPoint.t = 1.f;
-				newLeftPoint.closestPoint = calculateClosestPoint(newLeftPoint);
-				newLeftPoint.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(newLeftPoint));
-				newLeftPoint.newBranchBinding = true;
-				continue;
-			}
-			else if (toRebind[i]->t != 1) {
-				toRebind[i]->parentNode = newNode->parent;
-				toRebind[i]->childNode = newNode;
-				float leftCurrentDistance = glm::length(toRebind[i]->contourPoint - toRebind[index]->contourPoint);
-				toRebind[i]->blending = glm::clamp(1 - ((float)leftCurrentDistance / leftContourDistance), 0.f, 1.f);
-				toRebind[i]->t = glm::clamp(1 - ((float)leftCurrentDistance / leftContourDistance), 0.f, 1.f);
-				//toRebind[i]->blending = glm::clamp(((float)i / index), 0.f, 1.f);
-				//toRebind[i]->t = glm::clamp(((float)i / index), 0.f, 1.f);
+			if (i == 0) { // first point is bound to a different branching node
+				toRebind[i]->parentNode = newNode->parent->parent;
+				toRebind[i]->childNode = newNode->parent;
+				toRebind[i]->blending = 1.f;
+				toRebind[i]->t = 1.f;
 				toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
 				toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
 				toRebind[i]->newBranchBinding = true;
-				if ((toRebind[i]->t == 0 || toRebind[i]->blending == 0) && newNode->parent->parent != NULL) {
-					toRebind[i]->parentNode = newNode->parent->parent;
-					toRebind[i]->childNode = newNode->parent;
-					toRebind[i]->blending = 1;
-					toRebind[i]->t = 1;
-					toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
-					toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
-					toRebind[i]->newBranchBinding = true;
-				}
+				continue;
 			}
+			toRebind[i]->parentNode = newNode->parent;
+			toRebind[i]->childNode = newNode;
+			float leftCurrentDistance = glm::length(toRebind[i]->contourPoint - toRebind[index]->contourPoint);
+			toRebind[i]->blending = glm::clamp(1 - ((float)leftCurrentDistance / leftContourDistance), 0.f, 1.f);
+			toRebind[i]->t = glm::clamp(1 - ((float)leftCurrentDistance / leftContourDistance), 0.f, 1.f);
+			//toRebind[i]->blending = glm::clamp(((float)i / index), 0.f, 1.f);
+			//toRebind[i]->t = glm::clamp(((float)i / index), 0.f, 1.f);
+			toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
+			toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
+			toRebind[i]->newBranchBinding = true;
+			// no need for special case
+			//else if (toRebind[i]->t != 1) {
+			//	toRebind[i]->parentNode = newNode->parent;
+			//	toRebind[i]->childNode = newNode;
+			//	float leftCurrentDistance = glm::length(toRebind[i]->contourPoint - toRebind[index]->contourPoint);
+			//	toRebind[i]->blending = glm::clamp(1 - ((float)leftCurrentDistance / leftContourDistance), 0.f, 1.f);
+			//	toRebind[i]->t = glm::clamp(1 - ((float)leftCurrentDistance / leftContourDistance), 0.f, 1.f);
+			//	//toRebind[i]->blending = glm::clamp(((float)i / index), 0.f, 1.f);
+			//	//toRebind[i]->t = glm::clamp(((float)i / index), 0.f, 1.f);
+			//	toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
+			//	toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
+			//	toRebind[i]->newBranchBinding = true;
+			//	if ((toRebind[i]->t == 0 || toRebind[i]->blending == 0) && newNode->parent->parent != NULL) {
+			//		toRebind[i]->parentNode = newNode->parent->parent;
+			//		toRebind[i]->childNode = newNode->parent;
+			//		toRebind[i]->blending = 1;
+			//		toRebind[i]->t = 1;
+			//		toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
+			//		toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
+			//		toRebind[i]->newBranchBinding = true;
+			//	}
+			//}
 		}
 
 		float rightContourDistance = glm::length(toRebind[toRebind.size() - 1]->contourPoint - toRebind[index]->contourPoint);
+		//std::cout << index << ", " << toRebind.size() << std::endl;
 		for (int i = index + 1; i < toRebind.size(); i++) {
-			if (i == toRebind.size() - 1 && toRebind[i]->t == 1) { // last point is bound to a different branching node
-				newRightPoint.parentNode = newNode->parent->parent;
-				newRightPoint.childNode = newNode->parent;
-				newRightPoint.blending = 1.f;
-				newRightPoint.t = 1.f;
-				newRightPoint.closestPoint = calculateClosestPoint(newRightPoint);
-				newRightPoint.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(newRightPoint));
-				newRightPoint.newBranchBinding = true;
-				continue;
-			}
-			if (toRebind[i]->t != 1) {
-				toRebind[i]->parentNode = newNode->parent;
-				toRebind[i]->childNode = newNode;
-				float rightCurrentDistance = glm::length(toRebind[i]->contourPoint - toRebind[index]->contourPoint);
-				toRebind[i]->blending = glm::clamp(1 - ((float)rightCurrentDistance / rightContourDistance), 0.f, 1.f);
-				toRebind[i]->t = glm::clamp(1 - ((float)rightCurrentDistance / rightContourDistance), 0.f, 1.f);
-				//toRebind[i]->blending = glm::clamp(1 - ((float)(i - index) / (toRebind.size() - index - 1)), 0.f, 1.f);
-				//toRebind[i]->t = glm::clamp(1 - ((float)(i - index) / (toRebind.size() - index - 1)), 0.f, 1.f);
+			if (i == toRebind.size() - 1) { // last point is bound to a different branching node
+				toRebind[i]->parentNode = newNode->parent->parent;
+				toRebind[i]->childNode = newNode->parent;
+				toRebind[i]->blending = 1.f;
+				toRebind[i]->t = 1.f;
 				toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
 				toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
 				toRebind[i]->newBranchBinding = true;
-				if ((toRebind[i]->t == 0 || toRebind[i]->blending == 0) && newNode->parent->parent != NULL) {
-					toRebind[i]->parentNode = newNode->parent->parent;
-					toRebind[i]->childNode = newNode->parent;
-					toRebind[i]->blending = 1;
-					toRebind[i]->t = 1;
-					toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
-					toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
-					toRebind[i]->newBranchBinding = true;
-				}
+				continue;
 			}
+			toRebind[i]->parentNode = newNode->parent;
+			toRebind[i]->childNode = newNode;
+			float rightCurrentDistance = glm::length(toRebind[i]->contourPoint - toRebind[index]->contourPoint);
+			toRebind[i]->blending = glm::clamp(1 - ((float)rightCurrentDistance / rightContourDistance), 0.f, 1.f);
+			toRebind[i]->t = glm::clamp(1 - ((float)rightCurrentDistance / rightContourDistance), 0.f, 1.f);
+			//toRebind[i]->blending = glm::clamp(1 - ((float)(i - index) / (toRebind.size() - index - 1)), 0.f, 1.f);
+			//toRebind[i]->t = glm::clamp(1 - ((float)(i - index) / (toRebind.size() - index - 1)), 0.f, 1.f);
+			toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
+			toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
+			toRebind[i]->newBranchBinding = true;
+			//else if (toRebind[i]->t != 1) {
+			//	toRebind[i]->parentNode = newNode->parent;
+			//	toRebind[i]->childNode = newNode;
+			//	float rightCurrentDistance = glm::length(toRebind[i]->contourPoint - toRebind[index]->contourPoint);
+			//	toRebind[i]->blending = glm::clamp(1 - ((float)rightCurrentDistance / rightContourDistance), 0.f, 1.f);
+			//	toRebind[i]->t = glm::clamp(1 - ((float)rightCurrentDistance / rightContourDistance), 0.f, 1.f);
+			//	//toRebind[i]->blending = glm::clamp(1 - ((float)(i - index) / (toRebind.size() - index - 1)), 0.f, 1.f);
+			//	//toRebind[i]->t = glm::clamp(1 - ((float)(i - index) / (toRebind.size() - index - 1)), 0.f, 1.f);
+			//	toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
+			//	toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
+			//	toRebind[i]->newBranchBinding = true;
+			//	if ((toRebind[i]->t == 0 || toRebind[i]->blending == 0) && newNode->parent->parent != NULL) {
+			//		toRebind[i]->parentNode = newNode->parent->parent;
+			//		toRebind[i]->childNode = newNode->parent;
+			//		toRebind[i]->blending = 1;
+			//		toRebind[i]->t = 1;
+			//		toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
+			//		toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
+			//		toRebind[i]->newBranchBinding = true;
+			//	}
+			//}
 		}
 		toRebind[index]->parentNode = newNode->parent;
 		toRebind[index]->childNode = newNode;
@@ -1716,15 +1813,11 @@ void SceneNode::reorganizeChildrenRight(SceneNode* node)
 		reorganizeChildrenRight(child);
 }
 
-void calculateRebinding(std::vector<ContourBinding*>& bindings, const std::vector<int>& indices, SceneNode* start,
+void calculateRebinding(std::vector<ContourBinding*>& bindings, std::vector<int>& indices, SceneNode* start,
 	SceneNode* end, std::vector<std::pair<SceneNode*, SceneNode*>>& nodes, bool returning)
 {
 	glm::vec3 startNode = start->globalTransformation[3];
 	glm::vec3 endNode = end->globalTransformation[3];
-	//std::cout << startNode << std::endl;
-	//std::cout << endNode << std::endl;
-	//std::cout << indices.front() << std::endl;
-	//std::cout << indices.back() << std::endl;
 
 	for (int i = 1; i <= indices.size(); i++) {
 		float t = static_cast<float>(i) / indices.size();
@@ -1757,9 +1850,9 @@ void calculateRebinding(std::vector<ContourBinding*>& bindings, const std::vecto
 			binding->closestPoint = bindingPosition;
 			float distance = glm::length(branch.second->globalTransformation[3] - branch.first->globalTransformation[3]);
 			float bindingDistance = glm::length(bindingPosition - glm::vec3(branch.first->globalTransformation[3]));
-			if (bindingDistance / distance > 1.f || bindingDistance / distance < 0.f) {
-				std::cout << i << ", " << bindingDistance / distance << std::endl;
-			}
+			//if (bindingDistance / distance > 1.f || bindingDistance / distance < 0.f) {
+			//	std::cout << i << ", " << bindingDistance / distance << std::endl;
+			//}
 			binding->t = glm::clamp(bindingDistance / distance, 0.f, 1.f);
 			binding->blending = glm::clamp(bindingDistance / distance, 0.f, 1.f);
 			binding->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*binding));
@@ -1797,14 +1890,12 @@ static SceneNode* collectBranchEdges(SceneNode* branchStart, SceneNode* firstChi
 
 int findEndMarkerIndex(SceneNode* node, const std::vector<ContourBinding*>& bindings, int index)
 {
-
 	for (int i = 0; i < (int)bindings.size(); i++)
 	{
 		if (bindings[i]->childNode == node && bindings[i]->t == 1 && i >= index) {
 			return i;
 		}
 	}
-
 	return -1;
 }
 
@@ -1814,22 +1905,15 @@ static void validateBranchBindings(
 	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
 	std::vector<ContourBinding*>& bindings,
 	int& contourPos,
-	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
-	std::pair<int, int>& rebindHistory,
-	bool rebindEveryFrame)
+	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
 {
 	BranchKey currentBranch{ branchStart, branchEnd };
 	std::vector<int> indices;
 
 	int endIndex = findEndMarkerIndex(branchEnd, bindings, contourPos);
 	if (endIndex == -1) {
-		if (rebindEveryFrame) {
-			return;
-		}
-		else {
-			contourPos = rebindHistory.first;
-			endIndex = rebindHistory.second;
-		}
+		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, false });
+		return;
 
 	}
 
@@ -1863,11 +1947,7 @@ static void validateBranchBindings(
 		contourPos++;
 	}
 
-	if (!indices.empty())
-	{
-		rebindHistory.first = indices.front();
-		rebindHistory.second = indices.back();
-	}
+	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), false });
 
 	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, false);
 	//if (contourPos <= endIndex)
@@ -1880,22 +1960,15 @@ static void validateBranchBindingsReturn(
 	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
 	std::vector<ContourBinding*>& bindings,
 	int& contourPos,
-	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
-	std::pair<int, int>& rebindHistory,
-	bool rebindEveryFrame)
+	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
 {
 	BranchKey currentBranch{ branchStart, branchEnd };
 	std::vector<int> indices;
 
 	int endIndex = findEndMarkerIndex(branchStart, bindings, contourPos);
 	if (endIndex == -1) {
-		if (rebindEveryFrame) {
-			return;
-		}
-		else {
-			contourPos = rebindHistory.first;
-			endIndex = rebindHistory.second;
-		}
+		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, true });
+		return;
 	}
 
 	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
@@ -1933,11 +2006,7 @@ static void validateBranchBindingsReturn(
 		contourPos++;
 	}
 
-	if (!indices.empty())
-	{
-		rebindHistory.first = indices.front();
-		rebindHistory.second = indices.back();
-	}
+	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), true });
 
 	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, true);
 	//if (contourPos <= endIndex)
@@ -1948,9 +2017,7 @@ static bool validateBindingsDFSHelper(
 	SceneNode* node,
 	std::vector<ContourBinding*>& bindings,
 	int& contourPos,
-	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
-	std::pair<int, int>& rebindHistory,
-	bool rebindEveryFrame)
+	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
 {
 	if (!node)
 		return false;
@@ -1959,19 +2026,18 @@ static bool validateBindingsDFSHelper(
 	{
 		std::vector<std::pair<SceneNode*, SceneNode*>> branchEdges;
 		SceneNode* branchEnd = collectBranchEdges(node, child, branchEdges);
-
-		validateBranchBindings(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
+		validateBranchBindings(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
 
 		if (branchEnd->children.empty() && branchEnd->axisID == 0)
 		{
 			return true;
 		}
 
-		bool stop = validateBindingsDFSHelper(branchEnd, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
+		bool stop = validateBindingsDFSHelper(branchEnd, bindings, contourPos, misorientedPoints);
 		if (stop)
 			return true;
 
-		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
+		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
 	}
 
 	return false;
@@ -1981,22 +2047,18 @@ void validateBindingsDFS(
 	SceneNode* node,
 	std::vector<ContourBinding*>& bindings,
 	int& contourPos,
-	std::vector<std::pair<int, BranchKey>>& misorientedPoints,
-	std::pair<int, int>& rebindHistory,
-	bool rebindEveryFrame)
+	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
 {
-	validateBindingsDFSHelper(node, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
+	validateBindingsDFSHelper(node, bindings, contourPos, misorientedPoints);
 }
 
-std::vector<std::pair<int, BranchKey>> SceneNode::findMisorientedContourIndices(
+std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> SceneNode::findMisorientedContourIndices(
 	SceneNode* root,
-	std::vector<ContourBinding*>& bindings,
-	bool rebindEveryFrame)
+	std::vector<ContourBinding*>& bindings)
 {
-	std::vector<std::pair<int, BranchKey>> misorientedPoints;
-	std::pair<int, int> rebindHistory;  
+	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> misorientedPoints;
 	int contourPos = 0;
-	validateBindingsDFS(root, bindings, contourPos, misorientedPoints, rebindHistory, rebindEveryFrame);
+	validateBindingsDFS(root, bindings, contourPos, misorientedPoints);
 	return misorientedPoints;
 }
 

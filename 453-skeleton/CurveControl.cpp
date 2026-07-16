@@ -14,7 +14,31 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../thirdparty/stb/stb_image_write.h"
 #include "GLDebug.h"
-#include <glm/gtx/string_cast.hpp>
+
+#include "Geometry.h"
+#include "Log.h"
+#include "Panel.h"
+#include "ShaderProgram.h"
+#include "Window.h"
+
+#include <imgui.h>
+#include <memory>
+#include <glm/gtc/type_ptr.hpp>
+#include <cstdlib>
+
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/spline.hpp>
+#include <map>
+#include <numeric>
+#include <cmath>
+#include <regex>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/rotate_vector.hpp>
+#include <functional>
+#include "toml.hpp"
+#include <unordered_set>
+#include <queue>
 
 void Simulation::accumulateBranchingStructure(SceneNode* root, std::vector<SceneNode*>& branchingStructure) {
 	branchingStructure.push_back(root);
@@ -153,6 +177,7 @@ void Simulation::rebuildContourGeometry()
 	}
 
 	for (size_t i = 0; i < contourGeometry.verts.size(); i++) {
+		if (i == 48) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
 		contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 	}
 
@@ -418,6 +443,12 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseCl
 	}
 }
 
+void printVector(const std::vector<std::pair<int, int>>& vec) {
+	for (const auto& [first, second] : vec) {
+		std::cout << "(" << first << ", " << second << ")\n";
+	}
+}
+
 void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked, bool perpendicular)
 {
 	if (mouseClicked) {
@@ -439,6 +470,9 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 		//}
 		if (c == nullptr) {
 			std::cout << "contour point not clicked" << std::endl;
+		}
+		else if (!(c->parentNode->axisID == c->childNode->axisID && c->childNode->axisID == 0)) {
+			std::cout << "too close" << std::endl;
 		}
 		else {
 			ContourBinding pointToBreak;
@@ -463,8 +497,9 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			index = 0;
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
 			root->rebindToNewBranch(newNode, c, bindings);
+			root->addContourOverride(bindings, newNode);
 			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
-			
+
 			//// add new contour point to split node (dont do this anymore)
 			//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 			//branchingStructure.clear();
@@ -484,9 +519,10 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			}
 
 			root->reorganizeChildrenLeft(root);
-			std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf, true);
+			std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
+			//printVector(left);
 			root->reorganizeChildrenRight(root);
-			std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf, true);
+			std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
 			resetBool(root);
 
 			// update transformation for prev frame (delta time = 0)
@@ -519,9 +555,9 @@ void Simulation::handleAKey(float dt)
 			secondHalf.push_back(&bindings[i]);
 		}
 		root->reorganizeChildrenLeft(root);
-		std::vector<std::pair<int, BranchKey>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf, true);
+		std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
 		root->reorganizeChildrenRight(root);
-		std::vector<std::pair<int, BranchKey>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf, true);
+		std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
 		resetBool(root);
 	}
 }
