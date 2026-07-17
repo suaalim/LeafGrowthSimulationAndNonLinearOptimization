@@ -1505,6 +1505,9 @@ bool hasChildWithDifferentAxisID(SceneNode* first, SceneNode* second)
 
 // finds neighboring contour bindings around a given binding c
 std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode) {
+	int limit = 3;
+	int leftCounter = 0;
+	int rightCounter = 0;
 	std::vector<ContourBinding*> result;
 	int index = -1;
 	for (int i = 0; i < bindings.size(); i++) {
@@ -1519,18 +1522,22 @@ std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std
 		// detecting override   
 		// child axisID are different where the parent axisID are the same (and make sure bindings[i] isn't bound to main axis)
 		// can only rebind if the contour point is bound to the main axis
-		//if (!(bindings[i].parentNode->axisID == bindings[i].childNode->axisID && bindings[i].parentNode->axisID == 0)) {
-		if (bindings[i].t == 1 && bindings[i].childNode->axisID == newNode->parent->axisID && bindings[i].childNode->children.size() > 1 && hasChildWithDifferentAxisID(bindings[i].childNode, newNode)) { // newNode's parent should always exist
-			std::cout << "override left, break, " << i << std::endl;
-			overrideIdx = i;
-			overrideSide = false;
-			// need to pop back the last item, because the code will recognize i to be the first point after the point bound to the branching node
-			//if (!result.empty()) result.pop_back();
-			break;
+		if (bindings[i].bindingAxisID != newNode->parent->axisID) {
+		//if (bindings[i].t == 1 && bindings[i].childNode->axisID == newNode->parent->axisID && bindings[i].childNode->children.size() > 1 && hasChildWithDifferentAxisID(bindings[i].childNode, newNode)) { // newNode's parent should always exist
+			std::cout << "override left, " << i << std::endl;
+			if (leftCounter < limit && bindings[i].leafNodeMarker == -1) {
+				// allow override, the overriden branch will lose the branching node
+			}
+			else {
+				overrideIdx = i;
+				overrideSide = false;
+				break;
+			}
 		}
 		float dist = glm::distance(bindings[i].contourPoint, c->contourPoint);
 		if (dist <= rebindContourDistance) {
 			result.push_back(&bindings[i]);
+			leftCounter += 1;
 		}
 		else {
 			break;
@@ -1542,16 +1549,22 @@ std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std
 
 	// RIGHT SIDE
 	for (int i = index + 1; i < static_cast<int>(bindings.size()); i++) {
-		//if (bindings[i].childNode->axisID != newNode->axisID && bindings[i].parentNode->axisID == newNode->parent->axisID && bindings[i].childNode->axisID != bindings[i].parentNode->axisID) {
-		if (bindings[i].t == 1 && bindings[i].childNode->axisID == newNode->parent->axisID && bindings[i].childNode->children.size() > 1 && hasChildWithDifferentAxisID(bindings[i].childNode, newNode)) { // newNode's parent should always exist
-			std::cout << "override right, break, " << i << std::endl;
-			overrideIdx = i;
-			overrideSide = true;
-			break;
+		if (bindings[i].bindingAxisID != newNode->parent->axisID) {
+		//if (bindings[i].t == 1 && bindings[i].childNode->axisID == newNode->parent->axisID && bindings[i].childNode->children.size() > 1 && hasChildWithDifferentAxisID(bindings[i].childNode, newNode)) { // newNode's parent should always exist
+			std::cout << "override right, " << i << std::endl;
+			if (rightCounter < limit && bindings[i].leafNodeMarker == -1) {
+				// allow override, the overriden branch will lose the branching node
+			}
+			else {
+				overrideIdx = i;
+				overrideSide = false;
+				break;
+			}
 		}
 		float dist = glm::distance(bindings[i].contourPoint, c->contourPoint);
 		if (dist <= rebindContourDistance) {
 			result.push_back(&bindings[i]);
+			rightCounter += 1;
 		}
 		else {
 			break;
@@ -1602,24 +1615,14 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 // rebind all the contour points that were bound to the broken branch to the new branch
 void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings) {
 	std::vector<ContourBinding*> toRebind = getNearbyBindings(contour, bindings, newNode);
-	//std::cout << toRebind.size() << std::endl;
+
 	// find the exact point to bind to the new branch
 	int index = -1;
-	int leftMost = -1;
-	int rightMost = -1;
 
 	for (int i = 0; i < toRebind.size(); i++) {
 		if (toRebind[i]->contourPoint == contour->contourPoint) {
 			index = i;   // index is tip point
 			break;
-		}
-	}
-	for (int i = 0; i < bindings.size(); i++) {
-		if (bindings[i].contourPoint == toRebind[0]->contourPoint) {
-			leftMost = i;
-		}
-		else if (bindings[i].contourPoint == toRebind[toRebind.size() - 1]->contourPoint) {
-			rightMost = i;
 		}
 	}
 
@@ -1634,6 +1637,8 @@ void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, s
 				toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
 				toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
 				toRebind[i]->newBranchBinding = true;
+				toRebind[i]->branchingNodeMarker = newNode->parent->axisID;
+				toRebind[i]->bindingAxisID = newNode->axisID;
 				continue;
 			}
 			toRebind[i]->parentNode = newNode->parent;
@@ -1646,6 +1651,7 @@ void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, s
 			toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
 			toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
 			toRebind[i]->newBranchBinding = true;
+			toRebind[i]->bindingAxisID = newNode->axisID;
 			// no need for special case
 			//else if (toRebind[i]->t != 1) {
 			//	toRebind[i]->parentNode = newNode->parent;
@@ -1681,6 +1687,8 @@ void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, s
 				toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
 				toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
 				toRebind[i]->newBranchBinding = true;
+				toRebind[i]->branchingNodeMarker = newNode->parent->axisID;
+				toRebind[i]->bindingAxisID = newNode->axisID;
 				continue;
 			}
 			toRebind[i]->parentNode = newNode->parent;
@@ -1693,6 +1701,7 @@ void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, s
 			toRebind[i]->closestPoint = calculateClosestPoint(*toRebind[i]);
 			toRebind[i]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[i]));
 			toRebind[i]->newBranchBinding = true;
+			toRebind[i]->bindingAxisID = newNode->axisID;
 			//else if (toRebind[i]->t != 1) {
 			//	toRebind[i]->parentNode = newNode->parent;
 			//	toRebind[i]->childNode = newNode;
@@ -1722,6 +1731,8 @@ void SceneNode::rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, s
 		toRebind[index]->closestPoint = calculateClosestPoint(*toRebind[index]);
 		toRebind[index]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*toRebind[index]));
 		toRebind[index]->newBranchBinding = true;
+		toRebind[index]->bindingAxisID = newNode->axisID;
+		toRebind[index]->leafNodeMarker = newNode->axisID;
 	}
 }
 
@@ -1899,6 +1910,33 @@ int findEndMarkerIndex(SceneNode* node, const std::vector<ContourBinding*>& bind
 	return -1;
 }
 
+int findEndMarkerIndexUsingAxisIDUpPass(SceneNode* startNode, SceneNode* endNode, const std::vector<ContourBinding*>& bindings, int index)
+{
+	for (int i = 0; i < (int)bindings.size(); i++)
+	{
+		//if (i == 49) std::cout << bindings[i]->bindingAxisID << ", " << endNode->axisID << ", " << index << std::endl;
+		if (bindings[i]->bindingAxisID == endNode->axisID) {
+			//std::cout << i << std::endl;
+			return i;
+		}
+	}
+	return -1;
+}
+
+int findEndMarkerIndexUsingAxisIDDownPass(SceneNode* startNode, SceneNode* endNode, const std::vector<ContourBinding*>& bindings, int index)
+{
+	int lastIndex = -1;
+	for (int i = 0; i < (int)bindings.size(); i++)
+	{
+		//if (i == 49) std::cout << bindings[i]->bindingAxisID << ", " << endNode->axisID << ", " << index << std::endl;
+		if (bindings[i]->bindingAxisID == endNode->axisID && i >= index) {
+			//std::cout << i << std::endl;
+			lastIndex = i;
+		}
+	}
+	return lastIndex;
+}
+
 static void validateBranchBindings(
 	SceneNode* branchStart,
 	SceneNode* branchEnd,
@@ -1912,11 +1950,14 @@ static void validateBranchBindings(
 
 	int endIndex = findEndMarkerIndex(branchEnd, bindings, contourPos);
 	if (endIndex == -1) {
+		endIndex = findEndMarkerIndexUsingAxisIDUpPass(branchStart, branchEnd, bindings, contourPos);
 		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, false });
-		return;
+		//return;
 
 	}
-
+	if (endIndex == 49) {
+		std::cout << contourPos << std::endl;
+	}
 	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
 	{
 		indices.push_back(contourPos);
@@ -1947,7 +1988,7 @@ static void validateBranchBindings(
 		contourPos++;
 	}
 
-	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), false });
+	//misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), false });
 
 	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, false);
 	//if (contourPos <= endIndex)
@@ -1968,7 +2009,8 @@ static void validateBranchBindingsReturn(
 	int endIndex = findEndMarkerIndex(branchStart, bindings, contourPos);
 	if (endIndex == -1) {
 		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, true });
-		return;
+		int endIndex = findEndMarkerIndexUsingAxisIDDownPass(branchStart, branchEnd, bindings, contourPos);
+		//return;
 	}
 
 	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
@@ -2006,7 +2048,7 @@ static void validateBranchBindingsReturn(
 		contourPos++;
 	}
 
-	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), true });
+	//misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), true });
 
 	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, true);
 	//if (contourPos <= endIndex)
@@ -2315,7 +2357,9 @@ std::vector<ContourBinding> SceneNode::bindInterpolatedContourToBranches(std::ve
 			glm::mat4 previousAnimateInverse = glm::inverse(calculateAnimationMatrixForNewPoint(blending, child));
 
 			glm::vec3 bindingdirection = (contourPoints[i].first[j] - closestPoint) / 2.f;
-			bestBinding = { parent, child, contourPoints[i].first[j], t, closestPoint, previousAnimateInverse, false, blending, contourKey };
+			int leafNodeMarker = -1;
+			if (t == 1) leafNodeMarker = child->axisID;
+			bestBinding = { parent, child, contourPoints[i].first[j], t, closestPoint, previousAnimateInverse, false, blending, contourKey, -1, leafNodeMarker, child->axisID };
 			bindings.push_back(bestBinding);
 			contourKey += 1;
 		}
@@ -2324,7 +2368,7 @@ std::vector<ContourBinding> SceneNode::bindInterpolatedContourToBranches(std::ve
 	return bindings;
 }
 
-// just directly binding to closestPoint
+// just directly binding to closestPoint -> not used
 std::vector<ContourBinding> SceneNode::bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments) {
 	std::vector<ContourBinding> bindings;
 	glm::vec3 rootPos = root->globalTransformation[3];
@@ -2575,7 +2619,7 @@ std::vector<ContourBinding> SceneNode::addContourPoints(std::vector<ContourBindi
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, neighbor.childNode));
 				glm::vec3 closestPoint = calculateClosestPointForNewPoint(t, neighbor.childNode);
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, neighbor.childNode->axisID });
 				contourKey += 1;
 			}
 			else {
@@ -2583,7 +2627,7 @@ std::vector<ContourBinding> SceneNode::addContourPoints(std::vector<ContourBindi
 				float t = (bindings[i].t + bindings[i + 1].t) / 2.f;
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, bindings[i].childNode));
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, bindings[i].childNode->axisID });
 				contourKey += 1;
 			}
 		}
@@ -2616,7 +2660,7 @@ std::vector<ContourBinding> SceneNode::addContourPointsLargeBinding(std::vector<
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, neighbor.childNode));
 				glm::vec3 closestPoint = calculateClosestPointForNewPoint(t, neighbor.childNode);
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, neighbor.childNode->axisID });
 				contourKey += 1;
 			}
 			else {
@@ -2624,7 +2668,7 @@ std::vector<ContourBinding> SceneNode::addContourPointsLargeBinding(std::vector<
 				float t = (bindings[i].t + bindings[i + 1].t) / 2.f;
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, bindings[i].childNode));
 				newBindingSet.push_back(bindings[i]);
-				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey });
+				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, bindings[i].childNode->axisID});
 				contourKey += 1;
 			}
 		}

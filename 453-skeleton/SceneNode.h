@@ -62,6 +62,9 @@ struct ContourBinding {
 	bool newBranchBinding = false;
 	float blending;
 	int uniqueKey = 0;
+	int branchingNodeMarker = -1;
+	int leafNodeMarker = -1;
+	int bindingAxisID = -1;
 	// compute normal direction
 	glm::vec3 normalDirection = glm::vec3(0.f);
 	float normalFactor = 0.05f;
@@ -82,24 +85,6 @@ struct DivisionResult {
 struct DivideBranchResult {
 	bool divided;
 	std::vector<DivisionResult> results;
-};
-
-struct ContourRegion {
-	std::vector<ContourBinding*> bindings;
-	// unique parent/child branch segments touched by this region
-	std::set<std::pair<SceneNode*, SceneNode*>> branchSegments;
-};
-
-struct BranchSubRegion {
-	SceneNode* parentNode = nullptr;
-	SceneNode* childNode = nullptr;
-	std::vector<ContourBinding*> bindings;
-	float branchLength = 0.f;
-	float percentageOfRegion = 0.f; // this branch's share of the region, by length
-};
-
-struct DividedRegion {
-	std::vector<BranchSubRegion> subRegions;
 };
 
 // SceneNode for Scene Graph
@@ -133,8 +118,6 @@ public:
 	void addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings);
-	//void rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings);
-	//void rebindContourWithBrokenBranch(SceneNode* midNode, std::vector<ContourBinding>& bindings);
 	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
@@ -163,7 +146,6 @@ public:
 	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> findMisorientedContourIndices(
 		SceneNode* root,
 		std::vector<ContourBinding*>& bindings);
-	std::vector<std::pair<int, int>> overrideRegion(std::vector<ContourBinding*>& contours);
 	void saveBranchGeometry(CPU_Geometry& outGeometry);
 	void readNewBranchParameter();
 	void readSimulationParameter();

@@ -472,7 +472,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			std::cout << "contour point not clicked" << std::endl;
 		}
 		else if (!(c->parentNode->axisID == c->childNode->axisID && c->childNode->axisID == 0)) {
-			std::cout << "too close" << std::endl;
+			std::cout << "too close to another secondary axis" << std::endl;
 		}
 		else {
 			ContourBinding pointToBreak;
@@ -497,7 +497,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			index = 0;
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
 			root->rebindToNewBranch(newNode, c, bindings);
-			root->addContourOverride(bindings, newNode);
+			//root->addContourOverride(bindings, newNode);
 			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
 
 			//// add new contour point to split node (dont do this anymore)
@@ -520,7 +520,6 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 
 			root->reorganizeChildrenLeft(root);
 			std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
-			//printVector(left);
 			root->reorganizeChildrenRight(root);
 			std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
 			resetBool(root);
