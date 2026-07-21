@@ -1584,7 +1584,10 @@ SceneNode* findBranchRoot(SceneNode* node) {
 	while (current->parent != nullptr && current->parent->children.size() == 1) {
 		current = current->parent;
 	}
-	//if (current->parent) {
+	// in case override branch is the branching node itself
+	// if you start the while loop with a branching node, it will return the grandparent
+	if (node->children.size() > 1) current = node;
+		//if (current->parent) {
 	//	return current;
 	//}
 	//else {
@@ -1600,6 +1603,7 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 			// new contour point right AFTER i (between i and i+1).
 			ContourBinding newBinding;
 			std::cout << "override branch left: " << glm::vec3(overrideBranch->globalTransformation[3]) << std::endl;
+			// should not need the if-else for childNode, since we made modification in the findBranchRoot 
 			if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
 			else newBinding.childNode = overrideBranch;
 			newBinding.parentNode = newBinding.childNode->parent;
@@ -1622,6 +1626,7 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 			ContourBinding newBinding;
 			std::cout << "override branch right: " << glm::vec3(overrideBranch->globalTransformation[3]) << std::endl;
 			// use if-else to fix the issue where the overrideBranch is the branching node
+			// NEW: should not need the if-else for childNode, since we made modification in the findBranchRoot 
 			if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
 			else newBinding.childNode = overrideBranch;
 			newBinding.parentNode = newBinding.childNode->parent;
