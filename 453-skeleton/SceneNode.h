@@ -114,7 +114,7 @@ public:
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
 	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
-	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode);
+	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode, SceneNode* root);
 	void addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings);
@@ -124,7 +124,7 @@ public:
 	ContourBinding findBestBindingPerpendicular(SceneNode* root, const glm::vec3& contourPoint);
 	//bool splitAtBinding(ContourBinding* pointToBreak);
 	DivideBranchResult splitAtBinding(ContourBinding* pointToBreak);
-	void rebindToNewBranch(SceneNode* newNode, ContourBinding* contour, std::vector<ContourBinding>& bindings);
+	void rebindToNewBranch(SceneNode* newNode, SceneNode* root, ContourBinding* contour, std::vector<ContourBinding>& bindings);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
 	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings);
@@ -132,7 +132,7 @@ public:
 	void rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings);
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void printStructure(SceneNode* node);
-	void printTree(SceneNode* node, int depth);
+	void printTree(SceneNode* node, SceneNode* lastPrinted, int depth);
 	void buildBranches(SceneNode* node, std::vector<SceneNode*>& currentPath, std::vector<Branch>& branches);
 	std::vector<Branch> generateAllBranches(SceneNode* root);
 	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
@@ -183,6 +183,7 @@ public:
 	int contourKey = 0;
 	int overrideIdx = -1;
 	bool overrideSide = false; // false for left, true for right
+	SceneNode* overrideBranch;
 
 private:
 	// T trasformation (rest pose)

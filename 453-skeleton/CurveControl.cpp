@@ -178,7 +178,9 @@ void Simulation::rebuildContourGeometry()
 
 	for (size_t i = 0; i < contourGeometry.verts.size(); i++) {
 		if (i == 48) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
-		contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
+		if (i == 78) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		if (i == 85) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		else contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 	}
 
 }
@@ -471,9 +473,9 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 		if (c == nullptr) {
 			std::cout << "contour point not clicked" << std::endl;
 		}
-		else if (!(c->parentNode->axisID == c->childNode->axisID && c->childNode->axisID == 0)) {
-			std::cout << "too close to another secondary axis" << std::endl;
-		}
+		//else if (!(c->parentNode->axisID == c->childNode->axisID && c->childNode->axisID == 0)) {
+		//	std::cout << "too close to another secondary axis" << std::endl;
+		//}
 		else {
 			ContourBinding pointToBreak;
 			if (perpendicular)
@@ -496,8 +498,8 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			newPairs.clear();
 			index = 0;
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			root->rebindToNewBranch(newNode, c, bindings);
-			//root->addContourOverride(bindings, newNode);
+			root->rebindToNewBranch(newNode, root, c, bindings);
+			root->addContourOverride(bindings, newNode);
 			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
 
 			//// add new contour point to split node (dont do this anymore)
@@ -519,6 +521,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			}
 
 			root->reorganizeChildrenLeft(root);
+			root->printTree(root, nullptr, 0);
 			std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
 			root->reorganizeChildrenRight(root);
 			std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
