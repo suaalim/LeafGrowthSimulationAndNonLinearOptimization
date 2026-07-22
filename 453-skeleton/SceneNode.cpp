@@ -1525,7 +1525,7 @@ std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std
 		}
 		// don't ever override a leaf node
 		else if (bindings[i].leafNodeMarker != -1) {
-			std::cout << "override left, limit reached: " << i << std::endl;
+			std::cout << "override left (past leaf node), limit reached: " << i << std::endl;
 			overrideIdx = i;
 			overrideSide = false;
 			overrideBranch = bindings[i].childNode;
@@ -1561,7 +1561,7 @@ std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std
 		}
 		// don't ever override a leaf node
 		else if (bindings[i].leafNodeMarker != -1) {
-			std::cout << "override right, limit reached: " << i << std::endl;
+			std::cout << "override right (past leaf node), limit reached: " << i << std::endl;
 			overrideIdx = i;
 			overrideSide = true;
 			overrideBranch = bindings[i].childNode;
@@ -1599,9 +1599,10 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 			// new contour point right AFTER i (between i and i+1).
 			ContourBinding newBinding;
 			std::cout << "override branch left: " << glm::vec3(overrideBranch->globalTransformation[3]) << std::endl;
-			// should not need the if-else for childNode, since we made modification in the findBranchRoot 
-			if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
-			else newBinding.childNode = overrideBranch;
+			//// should not need the if-else for childNode, since we made modification in the findBranchRoot 
+			//if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
+			//else newBinding.childNode = overrideBranch;
+			newBinding.childNode = findBranchRoot(overrideBranch)->parent;
 			newBinding.parentNode = newBinding.childNode->parent;
 			newBinding.t = 1.f;
 			newBinding.blending = 1.f;
@@ -1621,10 +1622,11 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 			// new contour point right BEFORE i.
 			ContourBinding newBinding;
 			std::cout << "override branch right: " << glm::vec3(overrideBranch->globalTransformation[3]) << std::endl;
-			// use if-else to fix the issue where the overrideBranch is the branching node
-			// NEW: should not need the if-else for childNode, since we made modification in the findBranchRoot 
-			if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
-			else newBinding.childNode = overrideBranch;
+			//// use if-else to fix the issue where the overrideBranch is the branching node
+			//// NEW: should not need the if-else for childNode, since we made modification in the findBranchRoot 
+			//if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
+			//else newBinding.childNode = overrideBranch;
+			newBinding.childNode = findBranchRoot(overrideBranch)->parent;
 			newBinding.parentNode = newBinding.childNode->parent;
 			newBinding.t = 1.f;
 			newBinding.blending = 1.f;
@@ -1968,276 +1970,276 @@ void SceneNode::calculateRebindingGlobal(std::vector<ContourBinding*>& bindings)
 	}
 }
 
-void calculateRebinding(std::vector<ContourBinding*>& bindings, std::vector<int>& indices, SceneNode* start,
-	SceneNode* end, std::vector<std::pair<SceneNode*, SceneNode*>>& nodes, bool returning)
-{
-	glm::vec3 startNode = start->globalTransformation[3];
-	glm::vec3 endNode = end->globalTransformation[3];
-
-	for (int i = 1; i <= indices.size(); i++) {
-		float t = static_cast<float>(i) / indices.size();
-		glm::vec3 bindingPosition;
-
-		if (returning) {
-			bindingPosition = ((1.f - t) * endNode + t * startNode);
-		} else {
-			bindingPosition = t * endNode + (1.f - t) * startNode;
-		}
-
-		for (auto& branch : nodes) {
-			if (!isPointOnSegment(glm::vec3(branch.first->globalTransformation[3]), glm::vec3(branch.second->globalTransformation[3]), bindingPosition)) {
-				continue;
-			}
-
-			auto& binding = bindings[indices[i - 1]];
-			if (returning && i == indices.size() && start->parent) // returning & last contour point -> bound to start's parent
-			{
-				binding->parentNode = branch.first->parent;
-				binding->childNode = branch.first;
-				binding->closestPoint = bindingPosition;
-				binding->t = 1.f;
-				binding->blending = 1.f;
-				binding->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*binding));
-				break;
-			}
-			binding->parentNode = branch.first;
-			binding->childNode = branch.second;
-			binding->closestPoint = bindingPosition;
-			float distance = glm::length(branch.second->globalTransformation[3] - branch.first->globalTransformation[3]);
-			float bindingDistance = glm::length(bindingPosition - glm::vec3(branch.first->globalTransformation[3]));
-			//if (bindingDistance / distance > 1.f || bindingDistance / distance < 0.f) {
-			//	std::cout << i << ", " << bindingDistance / distance << std::endl;
-			//}
-			binding->t = glm::clamp(bindingDistance / distance, 0.f, 1.f);
-			binding->blending = glm::clamp(bindingDistance / distance, 0.f, 1.f);
-			binding->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*binding));
-			break;
-		}
-	}
-}
-
-static SceneNode* getAxisChangingChildren(SceneNode* node)
-{
-    for (SceneNode* child : node->children) {
-        if (child->axisID != node->axisID) {
-            return child;
-        }
-    }
-}
-
-static bool isBranchBoundary(SceneNode* node)
-{
-	if (node->children.empty()) // leaf
-		return true;
-
-	else if (node->children.size() > 1) { // branching node
-		//std::cout << glm::vec3(node->globalTransformation[3]) << std::endl;
-		//std::cout << node->children[0]->axisID << ", " << node->axisID << std::endl;
-		return getAxisChangingChildren(node);
-		//return node->children[0]->axisID != node->axisID;
-	}
-	return false;
-}
-
-static SceneNode* collectBranchEdges(SceneNode* branchStart, SceneNode* firstChild, std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges)
-{
-	SceneNode* parent = branchStart;
-	SceneNode* cur = firstChild;
-
-	while (true)
-	{
-		branchEdges.push_back({ parent, cur });
-		if (isBranchBoundary(cur)) {
-			return cur; // return branching/leaf node
-		}
-		parent = cur;
-		cur = cur->children[0]; // should work because you pass in the first child of the start node which tells you which way you are traversing
-	}
-}
-
-int findEndMarkerIndex(SceneNode* node, const std::vector<ContourBinding*>& bindings, int index)
-{
-	for (int i = 0; i < (int)bindings.size(); i++)
-	{
-		if (bindings[i]->childNode == node && bindings[i]->t == 1 && i >= index) {
-			return i;
-		}
-	}
-	return -1;
-}
-
-static void validateBranchBindings(
-	SceneNode* branchStart,
-	SceneNode* branchEnd,
-	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
-	std::vector<ContourBinding*>& bindings,
-	int& contourPos,
-	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
-{
-	BranchKey currentBranch{ branchStart, branchEnd };
-	std::vector<int> indices;
-
-	int endIndex = findEndMarkerIndex(branchEnd, bindings, contourPos);
-	if (endIndex == -1) {
-		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, false });
-		return;
-
-	}
-
-	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
-	{
-		indices.push_back(contourPos);
-		//std::cout << contourPos << std::endl;
-		//const ContourBinding& b = bindings[contourPos];
-
-		//bool onBranch = false;
-		//for (const auto& edge : branchEdges)
-		//{
-		//	if (b.parentNode == edge.first && b.childNode == edge.second)
-		//	{
-		//		onBranch = true;
-		//		break;
-		//	}
-		//}
-
-		//if (!onBranch)
-		//{
-		//	//std::cout << "Up" << std::endl;
-		//	//std::cout << "contour index: " << contourPos << std::endl;
-		//	//std::cout << "contour point: " << bindings[contourPos].contourPoint << std::endl;
-		//	//std::cout << "branch start: " << glm::vec3(branchStart->globalTransformation[3]) << std::endl;
-		//	//std::cout << "branch end: " << glm::vec3(branchEnd->globalTransformation[3]) << std::endl;
-		//	//std::cout << "contour's parent node: " << glm::vec3(b.parentNode->globalTransformation[3]) << std::endl;
-		//	//std::cout << "contour's child node: " << glm::vec3(b.childNode->globalTransformation[3]) << std::endl;
-		//	misorientedPoints.push_back({ contourPos, currentBranch });
-		//}
-		contourPos++;
-	}
-
-	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), false });
-
-	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, false);
-	//if (contourPos <= endIndex)
-	//	contourPos = endIndex + 1;
-}
-
-static void validateBranchBindingsReturn(
-	SceneNode* branchStart,
-	SceneNode* branchEnd,
-	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
-	std::vector<ContourBinding*>& bindings,
-	int& contourPos,
-	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
-{
-	BranchKey currentBranch{ branchStart, branchEnd };
-	std::vector<int> indices;
-
-	int endIndex = findEndMarkerIndex(branchStart, bindings, contourPos);
-	if (endIndex == -1) {
-		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, true });
-		return;
-	}
-
-	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
-	{
-		indices.push_back(contourPos);
-		//const ContourBinding& b = bindings[contourPos];
-		//bool onBranch = false;
-
-		//// on one of the branch's internal edges
-		//for (const auto& edge : branchEdges)
-		//{
-		//	if (b.parentNode == edge.first && b.childNode == edge.second)
-		//	{
-		//		onBranch = true;
-		//		break;
-		//	}
-		//}
-		//// back to branchStart
-		//if (!onBranch && branchStart->parent && b.parentNode == branchStart->parent && b.childNode == branchStart)
-		//{
-		//	onBranch = true;
-		//}
-
-		//if (!onBranch)
-		//{
-		//	//std::cout << "Down" << std::endl;
-		//	//std::cout << "contour index: " << contourPos << std::endl;
-		//	//std::cout << "contour point: " << bindings[contourPos].contourPoint << std::endl;
-		//	//std::cout << "branch start: " << glm::vec3(branchStart->globalTransformation[3]) << std::endl;
-		//	//std::cout << "branch end: " << glm::vec3(branchEnd->globalTransformation[3]) << std::endl;
-		//	//std::cout << "contour's parent node: " << glm::vec3(b.parentNode->globalTransformation[3]) << std::endl;
-		//	//std::cout << "contour's child node: " << glm::vec3(b.childNode->globalTransformation[3]) << std::endl;
-		//	misorientedPoints.push_back({ contourPos, currentBranch });
-		//}
-		contourPos++;
-	}
-
-	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), true });
-
-	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, true);
-	//if (contourPos <= endIndex)
-	//	contourPos = endIndex + 1;
-}
-
-static bool validateBindingsDFSHelper(
-	SceneNode* node,
-	std::vector<ContourBinding*>& bindings,
-	int& contourPos,
-	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
-{
-	if (!node)
-		return false;
-
-	for (SceneNode* child : node->children)
-	{
-		std::vector<std::pair<SceneNode*, SceneNode*>> branchEdges;
-		SceneNode* branchEnd = collectBranchEdges(node, child, branchEdges);
-		//std::cout << glm::vec3(branchEnd->globalTransformation[3]) << std::endl;
-		validateBranchBindings(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
-
-		if (branchEnd->children.empty() && branchEnd->axisID == 0)
-		{
-			return true;
-		}
-
-		bool stop = validateBindingsDFSHelper(branchEnd, bindings, contourPos, misorientedPoints);
-		if (stop)
-			return true;
-
-		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
-	}
-
-	return false;
-}
-
-void validateBindingsDFS(
-	SceneNode* node,
-	std::vector<ContourBinding*>& bindings,
-	int& contourPos,
-	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
-{
-	validateBindingsDFSHelper(node, bindings, contourPos, misorientedPoints);
-}
-
-std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> SceneNode::findMisorientedContourIndices(
-	SceneNode* root,
-	std::vector<ContourBinding*>& bindings)
-{
-	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> misorientedPoints;
-	int contourPos = 0;
-	validateBindingsDFS(root, bindings, contourPos, misorientedPoints);
-	return misorientedPoints;
-}
-
-// destructor
-void SceneNode::deleteSceneGraph(SceneNode* node) {
-	if (!node) return;
-	for (SceneNode* child : node->children) {
-		deleteSceneGraph(child);
-	}
-	delete node;
-}
+//void calculateRebinding(std::vector<ContourBinding*>& bindings, std::vector<int>& indices, SceneNode* start,
+//	SceneNode* end, std::vector<std::pair<SceneNode*, SceneNode*>>& nodes, bool returning)
+//{
+//	glm::vec3 startNode = start->globalTransformation[3];
+//	glm::vec3 endNode = end->globalTransformation[3];
+//
+//	for (int i = 1; i <= indices.size(); i++) {
+//		float t = static_cast<float>(i) / indices.size();
+//		glm::vec3 bindingPosition;
+//
+//		if (returning) {
+//			bindingPosition = ((1.f - t) * endNode + t * startNode);
+//		} else {
+//			bindingPosition = t * endNode + (1.f - t) * startNode;
+//		}
+//
+//		for (auto& branch : nodes) {
+//			if (!isPointOnSegment(glm::vec3(branch.first->globalTransformation[3]), glm::vec3(branch.second->globalTransformation[3]), bindingPosition)) {
+//				continue;
+//			}
+//
+//			auto& binding = bindings[indices[i - 1]];
+//			if (returning && i == indices.size() && start->parent) // returning & last contour point -> bound to start's parent
+//			{
+//				binding->parentNode = branch.first->parent;
+//				binding->childNode = branch.first;
+//				binding->closestPoint = bindingPosition;
+//				binding->t = 1.f;
+//				binding->blending = 1.f;
+//				binding->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*binding));
+//				break;
+//			}
+//			binding->parentNode = branch.first;
+//			binding->childNode = branch.second;
+//			binding->closestPoint = bindingPosition;
+//			float distance = glm::length(branch.second->globalTransformation[3] - branch.first->globalTransformation[3]);
+//			float bindingDistance = glm::length(bindingPosition - glm::vec3(branch.first->globalTransformation[3]));
+//			//if (bindingDistance / distance > 1.f || bindingDistance / distance < 0.f) {
+//			//	std::cout << i << ", " << bindingDistance / distance << std::endl;
+//			//}
+//			binding->t = glm::clamp(bindingDistance / distance, 0.f, 1.f);
+//			binding->blending = glm::clamp(bindingDistance / distance, 0.f, 1.f);
+//			binding->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*binding));
+//			break;
+//		}
+//	}
+//}
+//
+//static SceneNode* getAxisChangingChildren(SceneNode* node)
+//{
+//    for (SceneNode* child : node->children) {
+//        if (child->axisID != node->axisID) {
+//            return child;
+//        }
+//    }
+//}
+//
+//static bool isBranchBoundary(SceneNode* node)
+//{
+//	if (node->children.empty()) // leaf
+//		return true;
+//
+//	else if (node->children.size() > 1) { // branching node
+//		//std::cout << glm::vec3(node->globalTransformation[3]) << std::endl;
+//		//std::cout << node->children[0]->axisID << ", " << node->axisID << std::endl;
+//		return getAxisChangingChildren(node);
+//		//return node->children[0]->axisID != node->axisID;
+//	}
+//	return false;
+//}
+//
+//static SceneNode* collectBranchEdges(SceneNode* branchStart, SceneNode* firstChild, std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges)
+//{
+//	SceneNode* parent = branchStart;
+//	SceneNode* cur = firstChild;
+//
+//	while (true)
+//	{
+//		branchEdges.push_back({ parent, cur });
+//		if (isBranchBoundary(cur)) {
+//			return cur; // return branching/leaf node
+//		}
+//		parent = cur;
+//		cur = cur->children[0]; // should work because you pass in the first child of the start node which tells you which way you are traversing
+//	}
+//}
+//
+//int findEndMarkerIndex(SceneNode* node, const std::vector<ContourBinding*>& bindings, int index)
+//{
+//	for (int i = 0; i < (int)bindings.size(); i++)
+//	{
+//		if (bindings[i]->childNode == node && bindings[i]->t == 1 && i >= index) {
+//			return i;
+//		}
+//	}
+//	return -1;
+//}
+//
+//static void validateBranchBindings(
+//	SceneNode* branchStart,
+//	SceneNode* branchEnd,
+//	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
+//	std::vector<ContourBinding*>& bindings,
+//	int& contourPos,
+//	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
+//{
+//	BranchKey currentBranch{ branchStart, branchEnd };
+//	std::vector<int> indices;
+//
+//	int endIndex = findEndMarkerIndex(branchEnd, bindings, contourPos);
+//	if (endIndex == -1) {
+//		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, false });
+//		return;
+//
+//	}
+//
+//	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
+//	{
+//		indices.push_back(contourPos);
+//		//std::cout << contourPos << std::endl;
+//		//const ContourBinding& b = bindings[contourPos];
+//
+//		//bool onBranch = false;
+//		//for (const auto& edge : branchEdges)
+//		//{
+//		//	if (b.parentNode == edge.first && b.childNode == edge.second)
+//		//	{
+//		//		onBranch = true;
+//		//		break;
+//		//	}
+//		//}
+//
+//		//if (!onBranch)
+//		//{
+//		//	//std::cout << "Up" << std::endl;
+//		//	//std::cout << "contour index: " << contourPos << std::endl;
+//		//	//std::cout << "contour point: " << bindings[contourPos].contourPoint << std::endl;
+//		//	//std::cout << "branch start: " << glm::vec3(branchStart->globalTransformation[3]) << std::endl;
+//		//	//std::cout << "branch end: " << glm::vec3(branchEnd->globalTransformation[3]) << std::endl;
+//		//	//std::cout << "contour's parent node: " << glm::vec3(b.parentNode->globalTransformation[3]) << std::endl;
+//		//	//std::cout << "contour's child node: " << glm::vec3(b.childNode->globalTransformation[3]) << std::endl;
+//		//	misorientedPoints.push_back({ contourPos, currentBranch });
+//		//}
+//		contourPos++;
+//	}
+//
+//	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), false });
+//
+//	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, false);
+//	//if (contourPos <= endIndex)
+//	//	contourPos = endIndex + 1;
+//}
+//
+//static void validateBranchBindingsReturn(
+//	SceneNode* branchStart,
+//	SceneNode* branchEnd,
+//	std::vector<std::pair<SceneNode*, SceneNode*>>& branchEdges,
+//	std::vector<ContourBinding*>& bindings,
+//	int& contourPos,
+//	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
+//{
+//	BranchKey currentBranch{ branchStart, branchEnd };
+//	std::vector<int> indices;
+//
+//	int endIndex = findEndMarkerIndex(branchStart, bindings, contourPos);
+//	if (endIndex == -1) {
+//		misorientedPoints.push_back({ branchStart, branchEnd, contourPos, -1, true });
+//		return;
+//	}
+//
+//	while (contourPos < (int)bindings.size() && contourPos <= endIndex)
+//	{
+//		indices.push_back(contourPos);
+//		//const ContourBinding& b = bindings[contourPos];
+//		//bool onBranch = false;
+//
+//		//// on one of the branch's internal edges
+//		//for (const auto& edge : branchEdges)
+//		//{
+//		//	if (b.parentNode == edge.first && b.childNode == edge.second)
+//		//	{
+//		//		onBranch = true;
+//		//		break;
+//		//	}
+//		//}
+//		//// back to branchStart
+//		//if (!onBranch && branchStart->parent && b.parentNode == branchStart->parent && b.childNode == branchStart)
+//		//{
+//		//	onBranch = true;
+//		//}
+//
+//		//if (!onBranch)
+//		//{
+//		//	//std::cout << "Down" << std::endl;
+//		//	//std::cout << "contour index: " << contourPos << std::endl;
+//		//	//std::cout << "contour point: " << bindings[contourPos].contourPoint << std::endl;
+//		//	//std::cout << "branch start: " << glm::vec3(branchStart->globalTransformation[3]) << std::endl;
+//		//	//std::cout << "branch end: " << glm::vec3(branchEnd->globalTransformation[3]) << std::endl;
+//		//	//std::cout << "contour's parent node: " << glm::vec3(b.parentNode->globalTransformation[3]) << std::endl;
+//		//	//std::cout << "contour's child node: " << glm::vec3(b.childNode->globalTransformation[3]) << std::endl;
+//		//	misorientedPoints.push_back({ contourPos, currentBranch });
+//		//}
+//		contourPos++;
+//	}
+//
+//	misorientedPoints.push_back({ branchStart, branchEnd, indices.front(), indices.back(), true });
+//
+//	calculateRebinding(bindings, indices, branchStart, branchEnd, branchEdges, true);
+//	//if (contourPos <= endIndex)
+//	//	contourPos = endIndex + 1;
+//}
+//
+//static bool validateBindingsDFSHelper(
+//	SceneNode* node,
+//	std::vector<ContourBinding*>& bindings,
+//	int& contourPos,
+//	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
+//{
+//	if (!node)
+//		return false;
+//
+//	for (SceneNode* child : node->children)
+//	{
+//		std::vector<std::pair<SceneNode*, SceneNode*>> branchEdges;
+//		SceneNode* branchEnd = collectBranchEdges(node, child, branchEdges);
+//		//std::cout << glm::vec3(branchEnd->globalTransformation[3]) << std::endl;
+//		validateBranchBindings(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
+//
+//		if (branchEnd->children.empty() && branchEnd->axisID == 0)
+//		{
+//			return true;
+//		}
+//
+//		bool stop = validateBindingsDFSHelper(branchEnd, bindings, contourPos, misorientedPoints);
+//		if (stop)
+//			return true;
+//
+//		validateBranchBindingsReturn(node, branchEnd, branchEdges, bindings, contourPos, misorientedPoints);
+//	}
+//
+//	return false;
+//}
+//
+//void validateBindingsDFS(
+//	SceneNode* node,
+//	std::vector<ContourBinding*>& bindings,
+//	int& contourPos,
+//	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>>& misorientedPoints)
+//{
+//	validateBindingsDFSHelper(node, bindings, contourPos, misorientedPoints);
+//}
+//
+//std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> SceneNode::findMisorientedContourIndices(
+//	SceneNode* root,
+//	std::vector<ContourBinding*>& bindings)
+//{
+//	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> misorientedPoints;
+//	int contourPos = 0;
+//	validateBindingsDFS(root, bindings, contourPos, misorientedPoints);
+//	return misorientedPoints;
+//}
+//
+//// destructor
+//void SceneNode::deleteSceneGraph(SceneNode* node) {
+//	if (!node) return;
+//	for (SceneNode* child : node->children) {
+//		deleteSceneGraph(child);
+//	}
+//	delete node;
+//}
 
 // get all leaf nodes
 void SceneNode::getLeafNodes(SceneNode* node, std::vector<SceneNode*>& leaves) {

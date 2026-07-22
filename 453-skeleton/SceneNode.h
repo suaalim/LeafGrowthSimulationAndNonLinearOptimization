@@ -182,7 +182,7 @@ public:
 	int contourKey = 0;
 	int overrideIdx = -1;
 	bool overrideSide = false; // false for left, true for right
-	SceneNode* overrideBranch;
+	SceneNode* overrideBranch; // branch that got overriden (child node or branching node itself in special cases)
 
 private:
 	// T trasformation (rest pose)
