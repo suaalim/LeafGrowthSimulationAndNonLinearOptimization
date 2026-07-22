@@ -933,19 +933,21 @@ SceneNode* findMergeBranch(SceneNode* node) {
 }
 
 // check if a point belongs on a line segment
-bool isPointOnSegment(glm::vec2 A, glm::vec2 B, glm::vec2 P) {
-	float len = glm::length(B - A);
-	float cross = (P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x);
-	float distanceFromLine = fabs(cross) / len;
+bool isPointOnSegment(const glm::vec3& A, const glm::vec3& B, const glm::vec3& P) {
+	glm::vec3 AB = B - A;
+	glm::vec3 AP = P - A;
+	float len = glm::length(AB);
+	if (len < 1e-8f) return false; // degenerate segment
+
+	float distanceFromLine = glm::length(glm::cross(AB, AP)) / len;
 	if (distanceFromLine > 1e-5f) {
-		return false;  // not collinear
+		return false; // not collinear
 	}
 
-	float dot = (P.x - A.x) * (B.x - A.x) + (P.y - A.y) * (B.y - A.y);
-	if (dot < 0) return false; // before A
-
-	float lenSq = (B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y);
-	if (dot > lenSq) return false; // after B
+	float dot = glm::dot(AP, AB);
+	if (dot < 0.0f) return false;       // before A
+	float lenSq = len * len;
+	if (dot > lenSq) return false;      // after B
 
 	return true;
 }
@@ -1584,12 +1586,9 @@ SceneNode* findBranchRoot(SceneNode* node) {
 	while (current->parent != nullptr && current->parent->children.size() == 1) {
 		current = current->parent;
 	}
-	//if (current->parent) {
-	//	return current;
-	//}
-	//else {
-	//	return node; // return the original argument instead of current
-	//}
+	// in case override branch is the branching node itself
+	// if you start the while loop with a branching node, it will return the grandparent
+	if (node->children.size() > 1) current = node;
 	return current;
 }
 
@@ -1600,6 +1599,7 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 			// new contour point right AFTER i (between i and i+1).
 			ContourBinding newBinding;
 			std::cout << "override branch left: " << glm::vec3(overrideBranch->globalTransformation[3]) << std::endl;
+			// should not need the if-else for childNode, since we made modification in the findBranchRoot 
 			if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
 			else newBinding.childNode = overrideBranch;
 			newBinding.parentNode = newBinding.childNode->parent;
@@ -1622,6 +1622,7 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 			ContourBinding newBinding;
 			std::cout << "override branch right: " << glm::vec3(overrideBranch->globalTransformation[3]) << std::endl;
 			// use if-else to fix the issue where the overrideBranch is the branching node
+			// NEW: should not need the if-else for childNode, since we made modification in the findBranchRoot 
 			if (findBranchRoot(overrideBranch)->parent != nullptr) newBinding.childNode = findBranchRoot(overrideBranch)->parent;
 			else newBinding.childNode = overrideBranch;
 			newBinding.parentNode = newBinding.childNode->parent;
@@ -1860,6 +1861,111 @@ void SceneNode::reorganizeChildrenRight(SceneNode* node)
 
 	for (SceneNode* child : node->children)
 		reorganizeChildrenRight(child);
+}
+
+bool isAncestorOf(SceneNode* ancestor, SceneNode* descendant) {
+	SceneNode* current = descendant;
+	while (current != nullptr) {
+		if (current == ancestor) return true;
+		current = current->parent;
+	}
+	return false;
+}
+
+// helper function for global rebinding to find the subdivided segment for each axis
+std::pair<SceneNode*, SceneNode*> findSubdividedSegment(glm::vec3 closestPoint, SceneNode* parent, SceneNode* child) {
+	// gather subdivided nodes by walking UP from child to parent
+	std::vector<SceneNode*> nodes;
+	SceneNode* current = child;
+	while (current != nullptr) {
+		nodes.push_back(current);
+		if (current == parent) break;
+		current = current->parent; 
+	}
+
+	// if we never reached `parent`, the chain is broken/disconnected
+	if (nodes.empty() || nodes.back() != parent) {
+		return { nullptr, nullptr };
+	}
+
+	std::reverse(nodes.begin(), nodes.end()); // now ordered parent -> ... -> child
+
+	// build consecutive segment pairs
+	std::vector<std::pair<SceneNode*, SceneNode*>> segments;
+	segments.reserve(nodes.size() > 0 ? nodes.size() - 1 : 0);
+	for (size_t i = 0; i + 1 < nodes.size(); ++i) {
+		segments.emplace_back(nodes[i], nodes[i + 1]);
+	}
+
+	// find the segment closestPoint belongs to
+	for (auto& branch : segments) {
+		glm::vec3 A = glm::vec3(branch.first->globalTransformation[3]);
+		glm::vec3 B = glm::vec3(branch.second->globalTransformation[3]);
+
+		if (!isPointOnSegment(A, B, closestPoint)) {
+			continue;
+		}
+		return branch; 
+	}
+
+	// no segment matched 
+	return { nullptr, nullptr };
+}
+
+void SceneNode::calculateRebindingGlobal(std::vector<ContourBinding*>& bindings) {
+	int start = 0;
+	int regionSize = 0;
+	for (int i = 0; i < bindings.size(); i++) {
+		if (i == 0) continue;
+		regionSize += 1;
+		// branching node or leaf node marker detected
+		if (bindings[i]->branchingNodeMarker != -1 || bindings[i]->leafNodeMarker != -1) {
+			SceneNode* startNode;
+			SceneNode* endNode;
+			// observation: due to how we bind contour to branch, unless we are starting at the root, we always use the childnode (think about how the branching node marker is bound)
+			if (start == 0) startNode = bindings[start]->parentNode;  // cannot use i instead of start because we skip the outer loop for i = 0
+			else startNode = bindings[start]->childNode;
+			// similar to startNode, for the root node, we use parent node. child node otherwise
+			if (i == bindings.size() - 1) endNode = bindings[i]->parentNode;
+			else endNode = bindings[i]->childNode;
+
+			// determines which is parent and child node, since return pass flips the order
+			SceneNode* hierarchyParent;
+			SceneNode* hierarchyChild;
+			if (isAncestorOf(startNode, endNode)) {
+				hierarchyParent = startNode;
+				hierarchyChild = endNode;
+			}
+			else {
+				hierarchyParent = endNode;
+				hierarchyChild = startNode;
+			}
+
+			// rebind
+			for (int j = start; j <= i; j++) {
+				if (j == start || j == i) continue; // keep first and last point to root
+				bindings[j]->parentNode = startNode;
+				bindings[j]->childNode = endNode;
+				bindings[j]->t = 1.0 - ((float)i - (float)j) / ((float)i - (float)start);
+				//std::cout << i << ", " << j << ", " << start << std::endl;
+				bindings[j]->blending = 1.0 - ((float)i - (float)j) / ((float)i - (float)start);
+				bindings[j]->closestPoint = calculateClosestPoint(*bindings[j]);
+				// find the subdivided segment on the branch 
+				auto segment = findSubdividedSegment(bindings[j]->closestPoint, hierarchyParent, hierarchyChild);
+				if (segment.first != nullptr && segment.second != nullptr) {
+					bindings[j]->parentNode = segment.first;
+					bindings[j]->childNode = segment.second;
+					float distance = glm::length(segment.second->globalTransformation[3] - segment.first->globalTransformation[3]);
+					float bindingDistance = glm::length(bindings[j]->closestPoint - glm::vec3(segment.first->globalTransformation[3]));
+					bindings[j]->t = glm::clamp(bindingDistance / distance, 0.f, 1.f);
+					bindings[j]->blending = glm::clamp(bindingDistance / distance, 0.f, 1.f);
+				}
+				bindings[j]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*bindings[j]));
+			}
+			start = i;
+			regionSize = 0;
+		}
+	}
 }
 
 void calculateRebinding(std::vector<ContourBinding*>& bindings, std::vector<int>& indices, SceneNode* start,
@@ -2384,7 +2490,9 @@ std::vector<ContourBinding> SceneNode::bindInterpolatedContourToBranches(std::ve
 			contourKey += 1;
 		}
 	}
-
+	// set markers for the first and last contour points
+	bindings[0].leafNodeMarker = 0;
+	bindings[bindings.size() - 1].leafNodeMarker = 0;
 	return bindings;
 }
 
@@ -2419,15 +2527,6 @@ std::vector<ContourBinding> SceneNode::bindContourToBranches(const std::vector<g
 	}
 
 	return bindings;
-}
-
-
-// extract parent child pair (endpoints of the branches)
-void SceneNode::getBranches(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments) {
-	for (SceneNode* child : node->children) {
-		segments.push_back({ node, child });
-		getBranches(child, segments);
-	}
 }
 
 void SceneNode::printBranches(SceneNode* node) {
@@ -2468,6 +2567,14 @@ void SceneNode::printTree(SceneNode* node, SceneNode* lastPrinted, int depth) {
 		}
 	}
 }
+// ------- for outputting results
+// extract parent child pair (endpoints of the branches)
+void SceneNode::getBranches(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments) {
+	for (SceneNode* child : node->children) {
+		segments.push_back({ node, child });
+		getBranches(child, segments);
+	}
+}
 
 // label branches hierarchically
 void SceneNode::labelBranches(SceneNode* node, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments, int& i) {
@@ -2477,6 +2584,7 @@ void SceneNode::labelBranches(SceneNode* node, std::vector<std::tuple<SceneNode*
 		labelBranches(child, segments, i);
 	}
 }
+// -----------------------------
 
 // get maxID
 int SceneNode::getMaxID(SceneNode* node)
@@ -2489,68 +2597,6 @@ int SceneNode::getMaxID(SceneNode* node)
 	}
 
 	return maxID;
-}
-
-// returns vector of all nodes
-void collectNodes(SceneNode* node, std::vector<SceneNode*>& nodes)
-{
-	if (!node)
-		return;
-
-	nodes.push_back(node);
-
-	for (SceneNode* child : node->children)
-	{
-		collectNodes(child, nodes);
-	}
-}
-
-std::vector<SceneNode*> getAllNodes(SceneNode* root)
-{
-	std::vector<SceneNode*> nodes;
-	collectNodes(root, nodes);
-	return nodes;
-}
-
-// root -> leaf branch path
-void SceneNode::buildBranches(
-	SceneNode* node,
-	std::vector<SceneNode*>& currentPath,
-	std::vector<Branch>& branches
-) {
-	if (!node) return;
-
-	// add current node to path
-	currentPath.push_back(node);
-
-	// if leaf → store branch
-	if (node->children.empty()) {
-		Branch b;
-		b.root = currentPath.front();
-		b.leaf = node;
-		b.nodes = currentPath;
-		branches.push_back(b);
-
-		currentPath.pop_back();
-		return;
-	}
-
-	// recurse children
-	for (SceneNode* child : node->children) {
-		buildBranches(child, currentPath, branches);
-	}
-
-	// backtrack
-	currentPath.pop_back();
-}
-
-std::vector<Branch> SceneNode::generateAllBranches(SceneNode* root) {
-	std::vector<Branch> branches;
-	std::vector<SceneNode*> currentPath;
-
-	buildBranches(root, currentPath, branches);
-
-	return branches;
 }
 
 // interpolate branches (?) -> not used

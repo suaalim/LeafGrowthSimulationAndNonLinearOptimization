@@ -133,8 +133,6 @@ public:
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void printStructure(SceneNode* node);
 	void printTree(SceneNode* node, SceneNode* lastPrinted, int depth);
-	void buildBranches(SceneNode* node, std::vector<SceneNode*>& currentPath, std::vector<Branch>& branches);
-	std::vector<Branch> generateAllBranches(SceneNode* root);
 	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 	int getMaxID(SceneNode* node);
 	void incrementBranchIDsOnAxis(SceneNode* node, int axisID);
@@ -149,6 +147,7 @@ public:
 	void saveBranchGeometry(CPU_Geometry& outGeometry);
 	void readNewBranchParameter();
 	void readSimulationParameter();
+	void calculateRebindingGlobal(std::vector<ContourBinding*>& bindings);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V
