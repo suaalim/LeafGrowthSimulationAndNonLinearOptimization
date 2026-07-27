@@ -483,6 +483,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 		//}
 		else {
 			ContourBinding pointToBreak;
+			//if (counter <= 1) perpendicular = true;
 			if (perpendicular)
 				pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
 			else
@@ -538,7 +539,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			//root->reorganizeChildrenRight(root);
 			//std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
 			resetBool(root);
-
+			counter += 1;
 			// update transformation for prev frame (delta time = 0)
 			root->animate(0);
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));

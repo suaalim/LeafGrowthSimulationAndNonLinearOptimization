@@ -141,9 +141,6 @@ public:
 	void reorganizeChildrenRight(SceneNode* node);
 	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
 	std::vector<ContourBinding> addContourPointsLargeBinding(std::vector<ContourBinding>& bindings);
-	std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> findMisorientedContourIndices(
-		SceneNode* root,
-		std::vector<ContourBinding*>& bindings);
 	void saveBranchGeometry(CPU_Geometry& outGeometry);
 	void readNewBranchParameter();
 	void readSimulationParameter();
@@ -180,9 +177,10 @@ public:
 	bool rebindEveryFrame = false; // 0 for false, 1 for true
 	bool perpendicularBranch = false; // 0 for false, 1 for true
 	int contourKey = 0;
-	int overrideIdx = -1;
-	bool overrideSide = false; // false for left, true for right
-	SceneNode* overrideBranch; // branch that got overriden (child node or branching node itself in special cases)
+	int overrideIdxLeft = -1;
+	SceneNode* overrideBranchLeft; // branch that got overriden (child node or branching node itself in special cases)
+	int overrideIdxRight = -1;
+	SceneNode* overrideBranchRight;
 
 private:
 	// T trasformation (rest pose)

@@ -83,4 +83,6 @@ private:
 	int maxID = 0;
 	bool screenshotRequested = false;
 	bool clickedToAdd = false;
+
+	int counter = 0;
 };
