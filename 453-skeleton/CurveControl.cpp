@@ -152,12 +152,13 @@ void Simulation::updateSimulation()
 	branchingStructure.clear();
 	accumulateBranchingStructure(root, branchingStructure);
 
-	bindings = root->addContourPoints(bindings);
+	//bindings = root->addContourPoints(bindings);
 	//bindings = root->addContourPointsLargeBinding(bindings);
 }
 
 void Simulation::animateRebuild(float dt) {
-	root->animationPerFrame(bindings, dt);
+	root->animationPerFrameBinding(bindings, dt, 1);
+	//root->animationPerFrameContour(bindings, dt, 2);
 	root->calculateNormalDirection(bindings);
 }
 
@@ -177,7 +178,7 @@ void Simulation::rebuildContourGeometry()
 	}
 
 	for (size_t i = 0; i < contourGeometry.verts.size(); i++) {
-		if (i == 48) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		if (i == 118) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
 		//if (i == 78) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
 		//if (i == 85) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
 		else contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
@@ -507,7 +508,6 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			root->rebindToNewBranch(newNode, root, c, bindings);
 			root->addContourOverride(bindings, newNode);
 			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
-			
 			//// add new contour point to split node (dont do this anymore)
 			//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
 			//branchingStructure.clear();
@@ -529,9 +529,11 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			for (int i = 0; i < bindings.size(); i++) {
 				entire.push_back(&bindings[i]);
 			}
-			root->reorganizeChildrenLeft(root);
 			root->calculateRebindingGlobal(entire);
-			//root->printTree(root, nullptr, 0);
+			root->indentationControl(bindings, 1);
+			//root->blendTransformation(bindings, 1);
+			
+			//root->reorganizeChildrenLeft(root);
 			//for (int q = 0; q < bindings.size(); q++) {
 			//	std::cout << bindings[q].branchingNodeMarker << ", " << bindings[q].leafNodeMarker << std::endl;
 			//}
@@ -543,7 +545,11 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			// update transformation for prev frame (delta time = 0)
 			root->animate(0);
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			root->animationPerFrame(bindings, 0);
+			root->animationPerFrameBinding(bindings, 0, 1);
+			std::cout << "_______________" << std::endl;
+			//root->animationPerFrameContour(bindings, 0, 2);
+			//// indentation blend
+			//root->indentationControl(bindings, 2);
 		}
 	}
 }

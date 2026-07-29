@@ -68,6 +68,12 @@ struct ContourBinding {
 	// compute normal direction
 	glm::vec3 normalDirection = glm::vec3(0.f);
 	float normalFactor = 0.05f;
+	std::vector<glm::mat4> prevAnimationInverseToBlend;
+	bool blend = false;
+	int blendRegionBegining = -1;
+	int blendRegionEnd = -1;
+	int commonPIdx = -1;
+	std::vector<glm::mat4> previousAnimateInverseList;
 };
 
 struct Branch {
@@ -101,7 +107,6 @@ public:
 	);
 	void updateBranch(const glm::mat4& parentTransform, const glm::mat4& parentTransformAnimation, const glm::mat4& parentRestInverse, const glm::mat4& parentRest);
 	void animate(float deltaTime);
-	void deleteSceneGraph(SceneNode* node);
 	void getBranches(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
 	void labelBranches(SceneNode* node, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments, int& i);
 	void printBranches(SceneNode* node);
@@ -113,7 +118,8 @@ public:
 	std::vector<glm::vec3> midPoints(std::vector<glm::vec3>& contourPoints);
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
-	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
+	//void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
+	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime, int nodes);
 	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode, SceneNode* root);
 	void addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
@@ -122,7 +128,6 @@ public:
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
 	ContourBinding findBestBindingPerpendicular(SceneNode* root, const glm::vec3& contourPoint);
-	//bool splitAtBinding(ContourBinding* pointToBreak);
 	DivideBranchResult splitAtBinding(ContourBinding* pointToBreak);
 	void rebindToNewBranch(SceneNode* newNode, SceneNode* root, ContourBinding* contour, std::vector<ContourBinding>& bindings);
 	glm::quat accumulateRotationToRoot(SceneNode* node);
@@ -145,6 +150,10 @@ public:
 	void readNewBranchParameter();
 	void readSimulationParameter();
 	void calculateRebindingGlobal(std::vector<ContourBinding*>& bindings);
+	std::vector<glm::mat4> blendTransformation(std::vector<ContourBinding>& bindings, int nodes);
+	std::vector<glm::mat4> indentationControl(std::vector<ContourBinding>& bindings, int nodes);
+	void animationPerFrameContour(std::vector<ContourBinding>& bindings, float deltaTime, int nodes);
+	void animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime, int nodes);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V
@@ -194,6 +203,10 @@ private:
 	glm::mat4 expansion = glm::mat4(1.f);
 	// growth
 	glm::mat4 growth = glm::mat4(1.f);
+	// parent transformation that is inherited
+	glm::mat4 parentTransformation = glm::mat4(1.f);
+	glm::mat4 parentTransformationAnimation = glm::mat4(1.f);
+
 	// animation variables
 	float deltatime = 0.0f;
 	float animationDirection = 1.0f; // left and right branch rotation (+angle, -angle)
