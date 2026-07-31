@@ -72,8 +72,6 @@ struct ContourBinding {
 	bool blend = false;
 	int blendRegionBegining = -1;
 	int blendRegionEnd = -1;
-	int commonPIdx = -1;
-	std::vector<glm::mat4> previousAnimateInverseList;
 };
 
 struct Branch {
@@ -119,7 +117,6 @@ public:
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
 	//void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
-	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime, int nodes);
 	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode, SceneNode* root);
 	void addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
@@ -150,10 +147,9 @@ public:
 	void readNewBranchParameter();
 	void readSimulationParameter();
 	void calculateRebindingGlobal(std::vector<ContourBinding*>& bindings);
-	std::vector<glm::mat4> blendTransformation(std::vector<ContourBinding>& bindings, int nodes);
-	std::vector<glm::mat4> indentationControl(std::vector<ContourBinding>& bindings, int nodes);
-	void animationPerFrameContour(std::vector<ContourBinding>& bindings, float deltaTime, int nodes);
-	void animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime, int nodes);
+	void indentationControl(std::vector<ContourBinding>& bindings, int nodes);
+	void indentationControl(std::vector<ContourBinding>& bindings, float distance);
+	void animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V

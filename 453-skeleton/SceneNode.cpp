@@ -805,15 +805,21 @@ void recalculatePrevFrameInverseBlend(std::vector<ContourBinding>& bindings) {
 	{
 		transformations.push_back(calculateAnimationMatrix(bindings[i]));
 	}
-	for (ContourBinding& binding : bindings) {
-		if (binding.blend) {
-			binding.prevAnimationInverseToBlend.clear();
-			for (int j = binding.blendRegionBegining; j <= binding.blendRegionEnd; j++)
+	for (int i = 0; i < bindings.size(); i++) {
+		if (bindings[i].blend) {
+			bindings[i].prevAnimationInverseToBlend.clear();
+			for (int j = bindings[i].blendRegionBegining; j <= bindings[i].blendRegionEnd; j++)
 			{
-				binding.prevAnimationInverseToBlend.push_back(glm::inverse(transformations[j]));
+				glm::mat4 newTransform = transformations[j];
+				bindings[i].prevAnimationInverseToBlend.push_back(glm::inverse(newTransform));
 			}
 		}
 	}
+	//for (int i = 0; i < bindings.size(); i++) {
+	//	if (bindings[i].blend) {
+	//		bindings[i].previousAnimateInverse = glm::inverse(transformations[i]);
+	//	}
+	//}
 }
 
 void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings) {
@@ -2405,6 +2411,9 @@ std::vector<ContourBinding> SceneNode::addContourPoints(std::vector<ContourBindi
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, neighbor.childNode));
 				glm::vec3 closestPoint = calculateClosestPointForNewPoint(t, neighbor.childNode);
 				newBindingSet.push_back(bindings[i]);
+				//std::vector<glm::mat4> prevAnimationInverseToBlend;
+				//if (!(bindings[i].blend && bindings[i + 1].blend)) newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, neighbor.childNode->axisID });
+				//else newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, neighbor.childNode->axisID, glm::vec3(0.f), 0.05f, prevAnimationInverseToBlend, true, bindings[i].blendRegionBegining, bindings[i + 1].blendRegionEnd});
 				newBindingSet.push_back({ neighbor.parentNode, neighbor.childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, neighbor.childNode->axisID });
 				contourKey += 1;
 			}
@@ -2413,6 +2422,9 @@ std::vector<ContourBinding> SceneNode::addContourPoints(std::vector<ContourBindi
 				float t = (bindings[i].t + bindings[i + 1].t) / 2.f;
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, bindings[i].childNode));
 				newBindingSet.push_back(bindings[i]);
+				//std::vector<glm::mat4> prevAnimationInverseToBlend;
+				//if (!(bindings[i].blend && bindings[i + 1].blend)) newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, bindings[i].childNode->axisID });
+				//else newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, bindings[i].childNode->axisID, glm::vec3(0.f), 0.05f, prevAnimationInverseToBlend, true, bindings[i].blendRegionBegining, bindings[i + 1].blendRegionEnd });
 				newBindingSet.push_back({ bindings[i].parentNode, bindings[i].childNode, newPoint, t, glm::mix(bindings[i].closestPoint, bindings[i + 1].closestPoint, 0.5f), previousiInverseAnimationMat, bindings[i].newBranchBinding, blending, contourKey, -1, -1, bindings[i].childNode->axisID });
 				contourKey += 1;
 			}
@@ -2439,8 +2451,8 @@ std::vector<ContourBinding> SceneNode::addContourPointsLargeBinding(std::vector<
 			if (bindings[i].childNode != bindings[i + 1].childNode) {
 				// find younger branch to add to that branch
 				ContourBinding neighbor = (getDeeperNode(bindings[i].childNode, bindings[i + 1].childNode) == bindings[i].childNode) ? bindings[i] : bindings[i + 1];
-				glm::vec3 neighborParent = neighbor.parentNode->globalTransformation[3];
-				glm::vec3 neighborChild = neighbor.childNode->globalTransformation[3];
+				//glm::vec3 neighborParent = neighbor.parentNode->globalTransformation[3];
+				//glm::vec3 neighborChild = neighbor.childNode->globalTransformation[3];
 				float blending = neighbor.blending / 2.f;
 				float t = neighbor.t / 2.f;
 				glm::mat4 previousiInverseAnimationMat = glm::inverse(calculateAnimationMatrixForNewPoint(blending, neighbor.childNode));
@@ -2508,117 +2520,96 @@ void SceneNode::calculateNormalDirection(std::vector<ContourBinding>& bindings) 
 //	}
 //}
 
-// blend contour points directly, not transformation
-void SceneNode::animationPerFrameContour(std::vector<ContourBinding>& bindings, float deltaTime, int nodes) {
-	// petiole: limit the growth for the first and last few points
-	for (int i = 0; i < bindings.size(); i++) {
-		//if (i == 0 || i == bindings.size() - 1) continue;
-		glm::mat4 animatedPosMat;
-		animatedPosMat = calculateAnimationMatrix(bindings[i]);
-		bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
-		bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
-		bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
-	}
-	// blend contour points
-	std::vector<glm::vec3> contourPoints;
-	for (int i = 0; i < bindings.size(); i++) contourPoints.push_back(bindings[i].contourPoint);
-	//std::vector<float> blendWeights(2 * nodes + 1, 1.0f);
-	std::vector<float> blendWeights = { 1.f, 3.f, 5.f, 3.f, 1.f };
-	for (int i = 0; i < bindings.size(); i++) {
-		int firstIndex;
-		int lastIndex;
-		if (bindings[i].branchingNodeMarker == -1) continue;
-		firstIndex = std::max(0, i - nodes);
-		lastIndex = std::min(static_cast<int>(bindings.size()) - 1, i + nodes);
+// distance based
+void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float distance) {
+	if (bindings.empty()) return;
 
-		for (int k = firstIndex; k <= lastIndex; k++)
-		{
-			int localIndex = k - firstIndex;
-			int rangeSize = lastIndex - firstIndex + 1;
-			int radius = std::min(localIndex, rangeSize - 1 - localIndex);
-			glm::vec3 sum(0.0f);
-			float totalWeight = 0.0f;
-			//for (int j = localIndex - radius; j <= localIndex + radius; j++)
-			//{
-			//	sum += contourPoints[firstIndex + j];
-			//	totalWeight += 1.0f;
-			//}
-			for (int j = -radius; j <= radius; j++)
-			{
-				float w = blendWeights[nodes + j];
-				sum += w * contourPoints[firstIndex + localIndex + j];
-				totalWeight += w;
-			}
-			bindings[k].contourPoint = sum / totalWeight;
-		}
-		break;
+	// distance from the first point to any point 
+	std::vector<float> cumuDist(bindings.size());
+	cumuDist[0] = 0.0f;
+	for (size_t i = 1; i < bindings.size(); i++) {
+		cumuDist[i] = cumuDist[i - 1] +
+			glm::distance(bindings[i - 1].contourPoint, bindings[i].contourPoint); // adjust field name if needed
 	}
-}
 
-std::vector<glm::mat4> SceneNode::indentationControl(std::vector<ContourBinding>& bindings, int nodes) {
-	std::vector<glm::mat4> blended;
-	std::vector<glm::mat4> transformations;
-	std::vector<glm::mat4> prevBlended;
-	for (int i = 0; i < bindings.size(); i++)
-	{
-		transformations.push_back(calculateAnimationMatrix(bindings[i]));
-	}
-	blended = std::vector<glm::mat4>(transformations);
-	int firstIndex;
-	int lastIndex;
-	for (int i = 0; i < bindings.size(); i++)
-	{
+	int firstIndex, lastIndex;
+	for (int i = 0; i < static_cast<int>(bindings.size()); i++) {
 		if (bindings[i].branchingNodeMarker == -1)
 			continue;
-		firstIndex = std::max(0, i - nodes);
-		lastIndex = std::min(static_cast<int>(bindings.size()) - 1, i + nodes);
-		//int centerIndex = (firstIndex + lastIndex) / 2;
-		for (int k = firstIndex; k <= lastIndex; k++)
-		{
-			//if (k == centerIndex) continue;
-			int localIndex = k - firstIndex;
-			int rangeSize = lastIndex - firstIndex + 1;
-			int radius = std::min(localIndex, rangeSize - 1 - localIndex);
-			glm::mat4 sum(0.0f);
-			float totalWeight = 0.0f;
+		// i == branching node/boundary point
+		// get the blending region
+		float targetStart = cumuDist[i] - distance;
+		float targetEnd = cumuDist[i] + distance;
+
+		// first index whose cumuDist >= targetStart
+		firstIndex = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), targetStart) - cumuDist.begin());
+		firstIndex = std::max(0, firstIndex);
+
+		// last index whose cumuDist <= targetEnd
+		lastIndex = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), targetEnd) - cumuDist.begin()) - 1;
+		lastIndex = std::min(static_cast<int>(bindings.size()) - 1, lastIndex);
+		for (int k = firstIndex; k <= lastIndex; k++) {
+			// radiusDist calculates how far I am from each end of the blending region, takes the min
+			float distToStart = cumuDist[k] - cumuDist[firstIndex];
+			float distToEnd = cumuDist[lastIndex] - cumuDist[k];
+			float radiusDist = std::min(distToStart, distToEnd);
+
+			// finds the index of the point that is 'l' distance away (closest approximation)
+			// where 'l' = distance of the region you want to blend for this specific point
+			int idxLeft = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), cumuDist[k] - radiusDist) - cumuDist.begin());
+			int idxRight = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), cumuDist[k] + radiusDist) - cumuDist.begin()) - 1;
 
 			bindings[k].blend = true;
-			bindings[k].blendRegionBegining = firstIndex + (localIndex - radius);
-			bindings[k].blendRegionEnd = firstIndex + (localIndex + radius);
-			bindings[k].commonPIdx = i;
-
-			for (int j = localIndex - radius; j <= localIndex + radius; j++)
-			{
-				bindings[k].prevAnimationInverseToBlend.push_back(glm::inverse(transformations[firstIndex + j]));
-				//glm::mat4 originalT = transformations[firstIndex + j];
-				//glm::mat4 removeCommonP = originalT * glm::inverse(calculateAnimationMatrix(bindings[i]));
-				//bindings[k].prevAnimationInverseToBlend.push_back(glm::inverse(removeCommonP));
-				
-				//prevBlended.push_back(glm::inverse(transformations[firstIndex + j]));
-				//sum += transformations[firstIndex + j];
-				//totalWeight += 1.0f;
-			}
-			blended[k] = sum / totalWeight;
-			//if (k == centerIndex) { // try removing rotation
-			//	blended[k][1][0] = 0.0f;
-			//	blended[k][0][1] = 0.0f;
-			//	//blended[k][3][0] = transformations[k][3][0];
-			//}
+			bindings[k].blendRegionBegining = std::max(0, idxLeft);
+			bindings[k].blendRegionEnd = std::min(static_cast<int>(bindings.size()) - 1, idxRight);
 		}
 		break;
 	}
-	return prevBlended;
+	recalculatePrevFrameInverseBlend(bindings);
 }
 
-void SceneNode::animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime, int nodes) {
+// # of points based
+//void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, int nodes) {
+//	int firstIndex;
+//	int lastIndex;
+//	for (int i = 0; i < bindings.size(); i++)
+//	{
+//		if (bindings[i].branchingNodeMarker == -1)
+//			continue;
+//		firstIndex = std::max(0, i - nodes);
+//		lastIndex = std::min(static_cast<int>(bindings.size()) - 1, i + nodes);
+//		for (int k = firstIndex; k <= lastIndex; k++)
+//		{
+//			int localIndex = k - firstIndex;
+//			int rangeSize = lastIndex - firstIndex + 1;
+//			int radius = std::min(localIndex, rangeSize - 1 - localIndex);
+//			glm::mat4 sum(0.0f);
+//			float totalWeight = 0.0f;
+//
+//			bindings[k].blend = true;
+//			bindings[k].blendRegionBegining = firstIndex + (localIndex - radius);
+//			bindings[k].blendRegionEnd = firstIndex + (localIndex + radius);
+//			//if (k == 147 || k == 155) {
+//			//	bindings[k].blendRegionBegining = bindings[k].blendRegionBegining + 1;
+//			//	bindings[k].blendRegionEnd = bindings[k].blendRegionEnd - 1;
+//			//}
+//		}
+//		break;
+//	}
+//	recalculatePrevFrameInverseBlend(bindings);
+//}
+
+void SceneNode::animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime) {
+	std::vector<glm::mat4> prevInverseSnapshot(bindings.size());
+	for (size_t k = 0; k < bindings.size(); k++) {
+		prevInverseSnapshot[k] = bindings[k].previousAnimateInverse;
+	}
+
 	for (int i = 0; i < bindings.size(); i++) {
 		glm::mat4 animatedPosMat = calculateAnimationMatrix(bindings[i]);
-		if (!bindings[i].blend || i == 114 || i == 116) {
-			bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse
-				* glm::vec4(bindings[i].contourPoint, 1.0f);
-			bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse
-				* glm::vec4(bindings[i].closestPoint, 1.0f);
-			//bindings[i].previousAnimateInverseList.push_back(bindings[i].previousAnimateInverse);
+		if (!bindings[i].blend) {
+			bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
+			bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
 			bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
 		}
 		else {
@@ -2629,98 +2620,28 @@ void SceneNode::animationPerFrameBinding(std::vector<ContourBinding>& bindings, 
 			int counter = 0;
 			// i = current contour point to process
 			// j = pointer to the contour point within region of blending for i
-			//animatedPoint = calculateAnimationMatrix(bindings[bindings[i].commonPIdx]) * bindings[bindings[i].commonPIdx].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
-			//closePoint = calculateAnimationMatrix(bindings[bindings[i].commonPIdx]) * bindings[bindings[i].commonPIdx].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
 			for (int j = bindings[i].blendRegionBegining; j <= bindings[i].blendRegionEnd; j++)
 			{
 				glm::mat4 jAnimationMatrix = calculateAnimationMatrix(bindings[j]);
-				animatedPoint += weight * jAnimationMatrix * bindings[i].prevAnimationInverseToBlend[counter] * glm::vec4(bindings[i].contourPoint, 1.0f);
-				closePoint += weight * jAnimationMatrix * bindings[i].prevAnimationInverseToBlend[counter] * glm::vec4(bindings[i].closestPoint, 1.0f);
-				bindings[i].prevAnimationInverseToBlend[counter] = glm::inverse(jAnimationMatrix);
-				//if (i == 116) {
-				//	printMat4(animatedPosMat * bindings[i].previousAnimateInverse);
-				//	std::cout << bindings[i].blendRegionBegining << std::endl;
-				//	std::cout << bindings[i].blendRegionEnd << std::endl;
-				//	printMat4(weight * calculateAnimationMatrix(bindings[j]) * bindings[i].prevAnimationInverseToBlend[counter]);
-				//}
+				//glm::mat4 jPrevFrameAnimationMatrix = bindings[i].prevAnimationInverseToBlend[counter];
+				glm::mat4 jPrevFrameAnimationMatrix = prevInverseSnapshot[j];
+				animatedPoint += weight * jAnimationMatrix * jPrevFrameAnimationMatrix * glm::vec4(bindings[i].contourPoint, 1.0f);
+				closePoint += weight * jAnimationMatrix * jPrevFrameAnimationMatrix * glm::vec4(bindings[i].closestPoint, 1.0f);
+				//bindings[i].prevAnimationInverseToBlend[counter] = glm::inverse(jAnimationMatrix);
 				counter += 1;
-
-				//glm::mat4 originalT = calculateAnimationMatrix(bindings[j]);
-				//glm::mat4 removeCommonP = originalT * glm::inverse(calculateAnimationMatrix(bindings[bindings[i].commonPIdx]));
-				//printMat4(removeCommonP * bindings[i].prevAnimationInverseToBlend[counter]);
-				////accumulatedT += weight * removeCommonP * bindings[i].prevAnimationInverseToBlend[counter];
-				//animatedPoint += weight * removeCommonP * bindings[i].prevAnimationInverseToBlend[counter] * animatedPoint;
-				//closePoint += weight * removeCommonP * bindings[i].prevAnimationInverseToBlend[counter] * closePoint;
-				//bindings[i].prevAnimationInverseToBlend[counter] = glm::inverse(removeCommonP);
-				//counter += 1;
 			}
 			counter = 0;
-			//glm::vec4 animatedPoint = glm::vec4(0.f);
-			//glm::vec4 closePoint = glm::vec4(0.f);
-			//float weight = 1.f / (float)bindings[i].animationToBlend.size();
-			//int counter = 0;
-			//for (int index : bindings[i].animationToBlend) {
-			//	animatedPoint += weight * calculateAnimationMatrix(bindings[index]) * bindings[i].prevAnimationInverseToBlend[counter] * glm::vec4(bindings[i].contourPoint, 1.0f);
-			//	closePoint += weight * calculateAnimationMatrix(bindings[index]) * bindings[i].prevAnimationInverseToBlend[counter] * glm::vec4(bindings[i].closestPoint, 1.0f);
-			//	bindings[i].prevAnimationInverseToBlend[counter] = glm::inverse(calculateAnimationMatrix(bindings[index]));
-			//	counter += 1;
-			//}
-			//animatedPoint = accumulatedT * calculateAnimationMatrix(bindings[bindings[i].commonPIdx]) * bindings[bindings[i].commonPIdx].previousAnimateInverse * animatedPoint;
-			//closePoint = accumulatedT * calculateAnimationMatrix(bindings[bindings[i].commonPIdx]) * bindings[bindings[i].commonPIdx].previousAnimateInverse * closePoint;
 			bindings[i].contourPoint = animatedPoint;
 			bindings[i].closestPoint = closePoint;
-			animatedPoint = glm::vec4(0.f);
-			closePoint = glm::vec4(0.f);
-			//bindings[i].previousAnimateInverseList.push_back(bindings[i].previousAnimateInverse);
-			bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
+			//bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
 		}
+		//bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
+		//bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
+	}
+	// update previous inverse transformation after updating all points
+	for (size_t k = 0; k < bindings.size(); k++) {
+		bindings[k].previousAnimateInverse = glm::inverse(calculateAnimationMatrix(bindings[k]));
 	}
 }
-
-std::vector<glm::mat4> SceneNode::blendTransformation(std::vector<ContourBinding>& bindings, int nodes) {
-	std::vector<glm::mat4> blended = indentationControl(bindings, nodes);
-	for (int i = 0; i < bindings.size(); i++)
-	{
-		bindings[i].previousAnimateInverse = glm::inverse(blended[i]);
-	}
-	return blended;
-}
-
-//// smooth transition
-//std::vector<glm::mat4> blendTransforms(const std::vector<glm::mat4>& transforms)
-//{
-//	const int N = static_cast<int>(transforms.size());
-//	std::vector<glm::mat4> blended(N);
-//
-//	if (N == 0)
-//		return blended;
-//
-//	int center = (N - 1) / 2;
-//
-//	for (int i = 0; i < N; ++i)
-//	{
-//		// 0 at the ends, 1 at the center
-//		float t = 1.0f - std::abs(i - center) / float(center == 0 ? 1 : center);
-//
-//		// Blend radius grows toward the center.
-//		float sigma = std::max(0.001f, t * (N - 1) * 0.5f);
-//
-//		glm::mat4 sum(0.0f);
-//		float totalWeight = 0.0f;
-//
-//		for (int j = 0; j < N; ++j)
-//		{
-//			float d = float(i - j);
-//			float w = std::exp(-(d * d) / (2.0f * sigma * sigma));
-//
-//			sum += w * transforms[j];
-//			totalWeight += w;
-//		}
-//
-//		blended[i] = sum / totalWeight;
-//	}
-//
-//	return blended;
-//}
 
 

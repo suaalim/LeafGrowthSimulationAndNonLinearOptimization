@@ -157,7 +157,7 @@ void Simulation::updateSimulation()
 }
 
 void Simulation::animateRebuild(float dt) {
-	root->animationPerFrameBinding(bindings, dt, 1);
+	root->animationPerFrameBinding(bindings, dt);
 	//root->animationPerFrameContour(bindings, dt, 2);
 	root->calculateNormalDirection(bindings);
 }
@@ -178,12 +178,11 @@ void Simulation::rebuildContourGeometry()
 	}
 
 	for (size_t i = 0; i < contourGeometry.verts.size(); i++) {
-		if (i == 118) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
-		//if (i == 78) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
-		//if (i == 85) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		if (bindings[i].uniqueKey >= 177) contourGeometry.cols.push_back(glm::vec3(0.f, 0.f, 1.f));
+		if (i == 147) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		if (i == 150) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
 		else contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 	}
-
 }
 
 void Simulation::rebuildDebugGeometry()
@@ -530,7 +529,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 				entire.push_back(&bindings[i]);
 			}
 			root->calculateRebindingGlobal(entire);
-			root->indentationControl(bindings, 1);
+			root->indentationControl(bindings, 0.05f);
 			//root->blendTransformation(bindings, 1);
 			
 			//root->reorganizeChildrenLeft(root);
@@ -545,8 +544,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			// update transformation for prev frame (delta time = 0)
 			root->animate(0);
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			root->animationPerFrameBinding(bindings, 0, 1);
-			std::cout << "_______________" << std::endl;
+			root->animationPerFrameBinding(bindings, 0);
 			//root->animationPerFrameContour(bindings, 0, 2);
 			//// indentation blend
 			//root->indentationControl(bindings, 2);
