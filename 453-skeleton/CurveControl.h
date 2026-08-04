@@ -44,6 +44,7 @@ public:
 	void handleGKey(float dt);
 	void pressGKey(float dt, int state);
 	void releaseGKey(int state);
+	void handleGetContourInformation(const glm::vec3& worldPos, bool mouseClicked);
 	void handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseClicked);
 	void handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked, bool perpendicular);
 	void simulateGrowth(float dt);

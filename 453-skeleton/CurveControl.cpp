@@ -152,7 +152,7 @@ void Simulation::updateSimulation()
 	branchingStructure.clear();
 	accumulateBranchingStructure(root, branchingStructure);
 
-	//bindings = root->addContourPoints(bindings);
+	bindings = root->addContourPoints(bindings);
 	//bindings = root->addContourPointsLargeBinding(bindings);
 }
 
@@ -177,10 +177,10 @@ void Simulation::rebuildContourGeometry()
 		contourGeometry.verts.push_back(b.contourPoint);
 	}
 
-	for (size_t i = 0; i < contourGeometry.verts.size(); i++) {
-		if (bindings[i].uniqueKey >= 177) contourGeometry.cols.push_back(glm::vec3(0.f, 0.f, 1.f));
-		if (i == 147) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
-		if (i == 150) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+	for (size_t i = 0; i < bindings.size(); i++) {
+		//if (bindings[i].uniqueKey >= 177) contourGeometry.cols.push_back(glm::vec3(0.f, 0.f, 1.f));
+		if (i == 152) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		else if (i == 160) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
 		else contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 	}
 }
@@ -379,6 +379,29 @@ void Simulation::releaseGKey(int state) {
 		g_pressed = false;
 }
 
+void Simulation::handleGetContourInformation(const glm::vec3& worldPos, bool mouseClicked) {
+	if (mouseClicked) {
+		ContourBinding* c = nullptr;
+		for (int i = 0; i < bindings.size(); i++) {
+			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
+				c = &bindings[i];
+				break;
+			}
+		}
+		if (c == nullptr) {
+			std::cout << "contour point not clicked" << std::endl;
+		}
+		else {
+			std::cout << "t: " << c->t << std::endl;
+			std::cout << "blend begin: " << c->blendRegionBegining << std::endl;
+			std::cout << "blend end: " << c->blendRegionEnd << std::endl;
+			std::cout << "parent node: " << glm::vec3(c->parentNode->globalTransformation[3]) << std::endl;
+			std::cout << "child node: " << glm::vec3(c->childNode->globalTransformation[3]) << std::endl;
+			printMat4((c->blending) * c->childNode->marginTransformation + (1 - (c->blending)) * c->parentNode->marginTransformation * glm::toMat4(c->childNode->localRotation));
+		}
+	}
+}
+
 void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseClicked)
 {
 	if (!mouseClicked) return; // or remove this flag entirely if moved outside
@@ -443,7 +466,7 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseCl
 			}
 		}
 	}
-}
+} 
 
 void PrintSegments(const std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments)
 {
@@ -462,6 +485,7 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 		ContourBinding* c = nullptr;
 		for (int i = 0; i < bindings.size(); i++) {
 			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
+				//std::cout << i << std::endl;
 				c = &bindings[i];
 				break;
 			}
@@ -483,7 +507,6 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 		//}
 		else {
 			ContourBinding pointToBreak;
-			//if (counter <= 1) perpendicular = true;
 			if (perpendicular)
 				pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
 			else
@@ -495,7 +518,6 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 				newPairs.clear();
 				index = 0;
 				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-				//root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
 				root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
 			// add new branch
 			SceneNode* newNode = root->addNewBranch(root, c, maxID);
@@ -507,47 +529,24 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			root->rebindToNewBranch(newNode, root, c, bindings);
 			root->addContourOverride(bindings, newNode);
 			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
-			//// add new contour point to split node (dont do this anymore)
-			//bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
-			//branchingStructure.clear();
-			//accumulateBranchingStructure(root, branchingStructure);
 			
 			// reorganize children (leftmost to rightmost)
 			index = 0;
 			pairs.clear();
 			root->labelBranches(root, pairs, index);
-			//std::vector<ContourBinding*> firstHalf;
-			//for (int i = 1; i <= bindings.size() / 2; i++) {
-			//	firstHalf.push_back(&bindings[i]);
-			//}
-			//std::vector<ContourBinding*> secondHalf;
-			//for (int i = bindings.size() - 2; i >= bindings.size() / 2; i--) {
-			//	secondHalf.push_back(&bindings[i]);
-			//}
+
 			std::vector<ContourBinding*> entire;
 			for (int i = 0; i < bindings.size(); i++) {
 				entire.push_back(&bindings[i]);
 			}
 			root->calculateRebindingGlobal(entire);
-			root->indentationControl(bindings, 0.05f);
-			//root->blendTransformation(bindings, 1);
-			
-			//root->reorganizeChildrenLeft(root);
-			//for (int q = 0; q < bindings.size(); q++) {
-			//	std::cout << bindings[q].branchingNodeMarker << ", " << bindings[q].leafNodeMarker << std::endl;
-			//}
-			//std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
-			//root->reorganizeChildrenRight(root);
-			//std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
+			root->indentationControl(bindings, 0.05f);  // use 0.05 
 			resetBool(root);
-			counter += 1;
+
 			// update transformation for prev frame (delta time = 0)
 			root->animate(0);
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
 			root->animationPerFrameBinding(bindings, 0);
-			//root->animationPerFrameContour(bindings, 0, 2);
-			//// indentation blend
-			//root->indentationControl(bindings, 2);
 		}
 	}
 }
@@ -571,19 +570,11 @@ void Simulation::handleAKey(float dt)
 		}
 		root->reorganizeChildrenLeft(root);
 		root->calculateRebindingGlobal(entire);
-		//std::vector<ContourBinding*> firstHalf;
-		//for (int i = 1; i <= bindings.size() / 2; i++) {
-		//	firstHalf.push_back(&bindings[i]);
-		//}
-		//std::vector<ContourBinding*> secondHalf;
-		//for (int i = bindings.size() - 2; i >= bindings.size() / 2; i--) {
-		//	secondHalf.push_back(&bindings[i]);
-		//}
-		//root->reorganizeChildrenLeft(root);
-		//std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchLeft = root->findMisorientedContourIndices(root, firstHalf);
-		//root->reorganizeChildrenRight(root);
-		//std::vector<std::tuple<SceneNode*, SceneNode*, int, int, bool>> mismatchRight = root->findMisorientedContourIndices(root, secondHalf);
+		root->indentationControl(bindings, 0.05f);
 		resetBool(root);
+		//root->animate(0);
+		//root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		//root->animationPerFrameBinding(bindings, 0);
 	}
 }
 

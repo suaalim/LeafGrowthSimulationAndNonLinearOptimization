@@ -130,6 +130,8 @@ public:
 	glm::quat accumulateRotationToRoot(SceneNode* node);
 	std::vector<ContourBinding> addNewContourToBindToNewBranchNode(std::vector<ContourBinding>& bindings, std::vector<std::tuple<SceneNode*, SceneNode*, int>>& pairs);
 	std::vector<ContourBinding> addContourPoints(std::vector<ContourBinding>& bindings);
+	void pushInterpolatedContourBinding(std::vector<ContourBinding>& out, const ContourBinding& source, const glm::vec3& newPoint, float t,
+		float blending, bool newBranchBindingValue, const ContourBinding& a, const ContourBinding& b);
 	bool mergeBranch(SceneNode* node, SceneNode* nodeToRemove, SceneNode* parentToMerge, SceneNode* childToMerge);
 	void rebindContourWithMergedBranch(SceneNode* node, std::vector<ContourBinding>& bindings);
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
@@ -149,6 +151,7 @@ public:
 	void calculateRebindingGlobal(std::vector<ContourBinding*>& bindings);
 	void indentationControl(std::vector<ContourBinding>& bindings, int nodes);
 	void indentationControl(std::vector<ContourBinding>& bindings, float distance);
+	void indentationControl2(std::vector<ContourBinding>& bindings, float distance);
 	void animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
