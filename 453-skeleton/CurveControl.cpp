@@ -127,6 +127,7 @@ void Simulation::init(const std::string& path, bool isTxt, const std::string& ne
 	auto grouped = root->contourCatmullRomGrouped(contour, pairs);
 
 	bindings = root->bindInterpolatedContourToBranches(grouped);
+	bindings = root->addContourPoints(bindings);
 }
 
 void Simulation::clearGeometry() {
@@ -152,7 +153,7 @@ void Simulation::updateSimulation()
 	branchingStructure.clear();
 	accumulateBranchingStructure(root, branchingStructure);
 
-	bindings = root->addContourPoints(bindings);
+	//bindings = root->addContourPoints(bindings);
 	//bindings = root->addContourPointsLargeBinding(bindings);
 }
 
@@ -179,8 +180,8 @@ void Simulation::rebuildContourGeometry()
 
 	for (size_t i = 0; i < bindings.size(); i++) {
 		//if (bindings[i].uniqueKey >= 177) contourGeometry.cols.push_back(glm::vec3(0.f, 0.f, 1.f));
-		if (i == 152) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
-		else if (i == 160) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		if (i == 384) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
+		else if (i == 418) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
 		else contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 	}
 }
@@ -382,9 +383,11 @@ void Simulation::releaseGKey(int state) {
 void Simulation::handleGetContourInformation(const glm::vec3& worldPos, bool mouseClicked) {
 	if (mouseClicked) {
 		ContourBinding* c = nullptr;
+		int index;
 		for (int i = 0; i < bindings.size(); i++) {
-			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
+			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-03) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-03)) {
 				c = &bindings[i];
+				index = i;
 				break;
 			}
 		}
@@ -392,7 +395,9 @@ void Simulation::handleGetContourInformation(const glm::vec3& worldPos, bool mou
 			std::cout << "contour point not clicked" << std::endl;
 		}
 		else {
+			std::cout << "i: " << index << std::endl;
 			std::cout << "t: " << c->t << std::endl;
+			std::cout << "branching node marker?: " << c->branchingNodeMarker << std::endl;
 			std::cout << "blend begin: " << c->blendRegionBegining << std::endl;
 			std::cout << "blend end: " << c->blendRegionEnd << std::endl;
 			std::cout << "parent node: " << glm::vec3(c->parentNode->globalTransformation[3]) << std::endl;
@@ -548,6 +553,57 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
 			root->animationPerFrameBinding(bindings, 0);
 		}
+	}
+}
+
+void Simulation::dynamicallyAddBranch(bool perpendicular) {
+	ContourBinding* c = root->findBranchAdditionPoints(root, bindings, 1.f, 0.5f);
+
+	if (c == nullptr) {
+		//std::cout << "contour point not clicked" << std::endl;
+	}
+	else {
+		ContourBinding pointToBreak;
+		if (perpendicular)
+			pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
+		else
+			pointToBreak = root->findBestBinding(root, c->contourPoint);
+		DivideBranchResult result = root->splitAtBinding(&pointToBreak);
+		if (result.divided)
+			pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
+		// add new branch
+		SceneNode* newNode = root->addNewBranch(root, c, maxID);
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindToNewBranch(newNode, root, c, bindings);
+		root->addContourOverride(bindings, newNode);
+		maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
+
+		// reorganize children (leftmost to rightmost)
+		index = 0;
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+
+		std::vector<ContourBinding*> entire;
+		for (int i = 0; i < bindings.size(); i++) {
+			entire.push_back(&bindings[i]);
+		}
+		root->calculateRebindingGlobal(entire);
+		root->indentationControl(bindings, 0.05f);  // use 0.05 
+		resetBool(root);
+
+		// update transformation for prev frame (delta time = 0)
+		root->animate(0);
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->animationPerFrameBinding(bindings, 0);
 	}
 }
 

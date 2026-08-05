@@ -440,6 +440,7 @@ DivideBranchResult SceneNode::divideBranch(SceneNode* node, bool bidirectionalGr
 		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
 		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
 		float distance = glm::length(childPos - parentPos);
+
 		if (distance > subdivisionThreshold) {
 			dividedLocal = true;
 			SceneNode* midNode = new SceneNode();
@@ -799,6 +800,13 @@ DivideBranchResult SceneNode::divideBranch(SceneNode* node, bool bidirectionalGr
 //	}
 //}
 
+void findNodeToDynamicallyAddBranch(DivideBranchResult& result) {
+	for (const DivisionResult& dr : result.results) {
+		if (dr.midNode->addBranch) {
+
+		}
+	}
+}
 void recalculatePrevFrameInverseBlend(std::vector<ContourBinding>& bindings) {
 	std::vector<glm::mat4> transformations;
 	for (int i = 0; i < bindings.size(); i++)
@@ -1018,24 +1026,48 @@ void SceneNode::rebindContourWithMergedBranch(SceneNode* node, std::vector<Conto
 	}
 }
 
-// ADD NEW BRANCH
-// probably need a better way to find the contour point to add a new branch to, currently also can add new branch by clicking on the contour point
-ContourBinding* SceneNode::findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints) {
-	ContourBinding* finalContour = nullptr;
-	//std::vector<ContourBinding*> finalContours;
-	float difference = FLT_MAX;
+ContourBinding* SceneNode::findBranchAdditionPoints(SceneNode* root, std::vector<ContourBinding>& bindings, float distanceThreshold, float exclusionDistance)
+{
+	if (bindings.empty()) return nullptr;
 
-	// don't want to connect with the first and last 
-	for (size_t i = contourPoints.size() - 1; i > 1; i--) {
-		ContourBinding& contour = contourPoints[i];
-		float dist = abs(glm::length(glm::vec3(root->globalTransformation[3]) - contour.contourPoint) - height);
-		if (dist < difference) {
-			difference = dist;
-			finalContour = &contour;
-		}
+	// Precompute cumulative arc-length along the contour
+	std::vector<float> cumulativeDist(bindings.size(), 0.0f);
+	for (size_t k = 1; k < bindings.size(); k++) {
+		cumulativeDist[k] = cumulativeDist[k - 1] +
+			glm::length(bindings[k].contourPoint - bindings[k - 1].contourPoint);
 	}
 
-	return finalContour;
+	ContourBinding bestBinding;
+	size_t startIdx = 0;
+	float accumulatedDistance = 0.0f;
+	for (size_t i = startIdx + 1; i < bindings.size(); i++) {
+		glm::vec3 prevPoint = bindings[i - 1].contourPoint;
+		glm::vec3 currPoint = bindings[i].contourPoint;
+		accumulatedDistance += glm::length(currPoint - prevPoint);
+
+		//if (bindings[i].branchingNodeMarker != -1 || bindings[i].leafNodeMarker != -1) {
+		//	accumulatedDistance = 0.f;
+		//	startIdx = i;
+		//} else if 
+		if (accumulatedDistance > distanceThreshold) {
+			float minMarkedDistance = std::numeric_limits<float>::max();
+			for (int j = 0; j < bindings.size(); j++) {
+				bool isLeaf = (bindings[j].leafNodeMarker != -1);
+				bool isBranch = (bindings[j].branchingNodeMarker != -1);
+				if (isLeaf || isBranch) {
+					// arc-length distance along the contour, not straight-line
+					float d = std::abs(cumulativeDist[j] - cumulativeDist[i]);
+					minMarkedDistance = std::min(minMarkedDistance, d);
+				}
+			}
+			if (minMarkedDistance > exclusionDistance) {
+				startIdx = i;
+				accumulatedDistance = 0.0f;
+				return &bindings[i];
+			}
+		}
+	}
+	return nullptr;
 }
 
 // add new branch 90 degrees
@@ -2594,6 +2626,7 @@ void SceneNode::calculateNormalDirection(std::vector<ContourBinding>& bindings) 
 // distance based
 void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float distance) {
 	if (bindings.empty()) return;
+	else if (distance == 0.0f) return;
 
 	for (auto& b : bindings)
 	{
@@ -2610,9 +2643,12 @@ void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float 
 
 	// lambda function: runs the original computation for a given index k within the window [firstIndex, lastIndex]
 	auto normalCompute = [&](int kk, int firstIndex, int lastIndex, int& begin, int& end) {
+		// measure how far k is from each side of the window
 		float distToStart = cumuDist[kk] - cumuDist[firstIndex];
 		float distToEnd = cumuDist[lastIndex] - cumuDist[kk];
 		float radiusDist = std::min(distToStart, distToEnd);
+		// lower_bound & upper_bound returns the iterator
+		// so by subtracting begin(), it tells you how many elements away from the beginning is this?
 		int idxLeft = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), cumuDist[kk] - radiusDist) - cumuDist.begin());
 		int idxRight = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), cumuDist[kk] + radiusDist) - cumuDist.begin()) - 1;
 		begin = std::max(0, idxLeft);
@@ -2621,8 +2657,9 @@ void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float 
 
 	int firstIndex, lastIndex;
 	for (int i = 0; i < static_cast<int>(bindings.size()); i++) {
-		if (bindings[i].branchingNodeMarker == -1)
+		if (bindings[i].branchingNodeMarker == -1) {
 			continue;
+		}
 
 		// find the leaf point x whose leafNodeMarker matches i's bindingAxisID
 		int leafIdx = -1;

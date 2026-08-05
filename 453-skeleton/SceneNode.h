@@ -121,7 +121,6 @@ public:
 	void addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
 	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings);
-	ContourBinding* findContourPointToAddBranch(float height, SceneNode* root, std::vector<ContourBinding>& contourPoints);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
 	ContourBinding findBestBindingPerpendicular(SceneNode* root, const glm::vec3& contourPoint);
@@ -151,8 +150,9 @@ public:
 	void calculateRebindingGlobal(std::vector<ContourBinding*>& bindings);
 	void indentationControl(std::vector<ContourBinding>& bindings, int nodes);
 	void indentationControl(std::vector<ContourBinding>& bindings, float distance);
-	void indentationControl2(std::vector<ContourBinding>& bindings, float distance);
 	void animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime);
+	ContourBinding* findBranchAdditionPoints(SceneNode* root, std::vector<ContourBinding>& bindings,
+		float distanceThreshold, float leafExclusionDistance);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V

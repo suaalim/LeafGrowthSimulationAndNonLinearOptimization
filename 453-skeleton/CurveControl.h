@@ -47,6 +47,7 @@ public:
 	void handleGetContourInformation(const glm::vec3& worldPos, bool mouseClicked);
 	void handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseClicked);
 	void handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked, bool perpendicular);
+	void dynamicallyAddBranch(bool perpendicular);
 	void simulateGrowth(float dt);
 	void simulateSubdivision();
 	void screenshot(GLFWwindow* window);

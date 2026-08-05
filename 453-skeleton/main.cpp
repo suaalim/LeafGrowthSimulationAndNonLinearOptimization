@@ -256,7 +256,6 @@ int main(int argc, char* argv[]) {
 		//float lastTime = glfwGetTime();
 		float deltaTime = sim.getDeltaTime();
 		bool grow = true;  // cannot grow and subdivide at the same time
-		bool rebind = true;
 		bool perpendicularBranch = sim.getPerpendicularBranch();
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -275,29 +274,29 @@ int main(int argc, char* argv[]) {
 			if (grow) {
 				sim.handleGKey(deltaTime);
 				grow = false;
-				rebind = true;
 			}
 			else {
 				sim.handleSKey();
 				sim.handleAKey(deltaTime);
 				grow = true;
 			}
+			
 			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
+			sim.handleGetContourInformation(worldPos, clickedToRemove);
 			clickedToRemove = false;
-
 			static bool simulateClick = true;
-			if (simulateClick)
-			{
-				worldPos = glm::vec3(0.056f, 0.762f, 4.9f);
-				//worldPos = glm::vec3(0.056000, 0.712938, 0.000000);
-				clickedToAdd = true;
-				simulateClick = false;   // only simulate once
-			}
-			sim.handleAddBranchClick(worldPos, clickedToAdd, perpendicularBranch);
-			clickedToAdd = false;
+			//if (simulateClick)
+			//{
+			//	worldPos = glm::vec3(0.056f, 0.762f, 4.9f);
+			//	//worldPos = glm::vec3(0.056000, 0.712938, 0.000000);
+			//	clickedToAdd = true;
+			//	simulateClick = false;   // only simulate once
+			//}
+			//sim.handleAddBranchClick(worldPos, clickedToAdd, perpendicularBranch);
+			//clickedToAdd = false;
+			sim.dynamicallyAddBranch(perpendicularBranch);
 
-			if (rebind) sim.handleAKey(deltaTime);
-			rebind = false;
+			sim.handleAKey(deltaTime);
 			/*if (sim.g_pressed) {
 				sim.animateRebuild(deltaTime);
 			}*/
