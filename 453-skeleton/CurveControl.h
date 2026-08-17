@@ -22,12 +22,12 @@ public:
 
 	bool g_pressed = false;
 
-	void init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim);
+	void init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim, const std::string& petiole);
 
-	void stepHeadless(float dt, float length);
+	void stepHeadless(float length);
 
 	void updateSimulation();
-	void animateRebuild(float dt);
+	void animateRebuild();
 	void rebuildContourGeometry();
 	void rebuildDebugGeometry();
 	void rebuildBranchGeometry();
@@ -35,24 +35,22 @@ public:
 	void setVisualization();
 	void visualization();
 
-	float getDeltaTime();
-	bool getPerpendicularBranch();
-
 	void handleSKey();
 	void pressSKey(int state);
 	void releaseSkey(int state);
-	void handleGKey(float dt);
-	void pressGKey(float dt, int state);
+	void handleGKey();
+	void pressGKey(int state);
 	void releaseGKey(int state);
 	void handleGetContourInformation(const glm::vec3& worldPos, bool mouseClicked);
 	void handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseClicked);
-	void handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked, bool perpendicular);
-	void dynamicallyAddBranch(bool perpendicular);
+	void handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked);
+	void processBranchAddition(ContourBinding* c);
+	void dynamicallyAddBranch();
 	void simulateGrowth(float dt);
 	void simulateSubdivision();
-	void screenshot(GLFWwindow* window);
+	void screenshot(GLFWwindow* window, bool automatic);
 	void saveContourGeometry(GLFWwindow* window);
-	void handleAKey(float dt);
+	void handleAKey();
 	void simulationInstructions(float dt);
 	float computeMainAxisLength(SceneNode* root);
 	void resetBool(SceneNode* root);

@@ -72,6 +72,8 @@ struct ContourBinding {
 	bool blend = false;
 	int blendRegionBegining = -1;
 	int blendRegionEnd = -1;
+	std::vector<float> blendingWeights;
+	int petioleRegion = -1;
 };
 
 struct Branch {
@@ -88,6 +90,7 @@ struct DivisionResult {
 
 struct DivideBranchResult {
 	bool divided;
+	bool petiole;
 	std::vector<DivisionResult> results;
 };
 
@@ -116,11 +119,14 @@ public:
 	std::vector<glm::vec3> midPoints(std::vector<glm::vec3>& contourPoints);
 	std::vector<ContourBinding> bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	void interpolateBranchTransforms(std::vector<std::pair<SceneNode*, SceneNode*>>& pair, std::vector<CPU_Geometry>& outGeometry);
-	//void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
-	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode, SceneNode* root);
+	void animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime);
+	std::vector<ContourBinding*> getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	void addContourOverride(std::vector<ContourBinding>& bindings, SceneNode* newNode);
 	DivideBranchResult divideBranch(SceneNode* node, bool bidirectionalGrowth);
-	void rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings);
+	DivideBranchResult divideSingleBranch(SceneNode* node, SceneNode* child, bool bidirectionalGrowth, float region, int rates);
+	SceneNode* subdivideEdge(SceneNode* node, SceneNode* child, const glm::vec3& splitPos,
+		bool bidirectionalGrowth, int zeroInterpolatedValues);
+	void rebindContourWithBrokenBranch(SceneNode* node, bool& petiole, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings);
 	SceneNode* addNewBranch(SceneNode* node, ContourBinding* contour, int& maxID);
 	ContourBinding findBestBinding(SceneNode* root, const glm::vec3& contourPoint);
 	ContourBinding findBestBindingPerpendicular(SceneNode* root, const glm::vec3& contourPoint);
@@ -136,23 +142,24 @@ public:
 	void calculateNormalDirection(std::vector<ContourBinding>& bindings);
 	void printStructure(SceneNode* node);
 	void printTree(SceneNode* node, SceneNode* lastPrinted, int depth);
-	std::vector<ContourBinding> bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments);
+	std::vector<ContourBinding> bindContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints);
 	int getMaxID(SceneNode* node);
 	void incrementBranchIDsOnAxis(SceneNode* node, int axisID);
 	void decrementBranchIDsOnAxis(SceneNode* node, int axisID);
 	void reorganizeChildrenLeft(SceneNode* node);
 	void reorganizeChildrenRight(SceneNode* node);
-	bool divideBranchMinDistance(SceneNode* node, ContourBinding* contour);
 	std::vector<ContourBinding> addContourPointsLargeBinding(std::vector<ContourBinding>& bindings);
 	void saveBranchGeometry(CPU_Geometry& outGeometry);
 	void readNewBranchParameter();
 	void readSimulationParameter();
+	void readPetioleParameter();
 	void calculateRebindingGlobal(std::vector<ContourBinding*>& bindings);
-	void indentationControl(std::vector<ContourBinding>& bindings, int nodes);
-	void indentationControl(std::vector<ContourBinding>& bindings, float distance);
-	void animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime);
+	void indentationControl(std::vector<ContourBinding>& bindings);
+	void animationPerFrameBinding(std::vector<ContourBinding>& bindings);
 	ContourBinding* findBranchAdditionPoints(SceneNode* root, std::vector<ContourBinding>& bindings,
 		float distanceThreshold, float leafExclusionDistance);
+	ContourBinding* findSymmetricBinding(std::vector<ContourBinding>& bindings,
+		const glm::vec3& point, float maxSearchDistance, bool mirrorZ);
 
 	//glm::mat4 globalTransformationBranch = glm::mat4(1.f);
 	// global transformation for contour A = T*V
@@ -181,9 +188,22 @@ public:
 	int axisID = 0;
 	glm::quat localRotation;
 	float deltaTime = 0.0f;
-	bool subdivideBranch = false; // 0 for false, 1 for true
-	bool rebindEveryFrame = false; // 0 for false, 1 for true
-	bool perpendicularBranch = false; // 0 for false, 1 for true
+	float indentationWindow = 0.0f;
+	float newBranchDistance = 0.0f;
+	float newBranchExclusion = 0.0f;
+	bool subdivideBranch = false; 
+	bool rebindEveryFrame = false;
+	bool perpendicularBranch = false; 
+	bool blend = false; 
+	bool petiole = false;
+	bool symmetricBranch = false;
+	bool perpendicularBinding = false;
+	float newBranchDivision1 = 0.0f;
+	float newBranchDivision2 = 0.0f;
+	float newBranchDivision3 = 0.0f;
+	float mainAxisDivision1 = 0.0f;
+	float mainAxisDivision2 = 0.0f;
+	float mainAxisDivision3 = 0.0f;
 	int contourKey = 0;
 	int overrideIdxLeft = -1;
 	SceneNode* overrideBranchLeft; // branch that got overriden (child node or branching node itself in special cases)
@@ -220,9 +240,16 @@ private:
 	float growthAmount = 1.0f;
 	float growthFactor = 1.0f;
 	float positionOnBranch = 1.f; // to calculate positional information
+	float branchingNodeS = 0.f;
+	float branchingNodeExpansionFactor = 0.f;
+	float branchingNodeGrowthFactor = 0.f;
+	//std::vector<float> S = {};
+	//std::vector<float> growthFactor = {};
+	//std::vector<float> expansionFactor = {};
 
 	int branchID = 0;
-	float distanceFromRoot;
+	int level = 0;
+	float rebindContourDistance = 0.0f;
 
 	float newBranchS = 0.0f;
 	float newBranchExpansionFactor = 0.0f;
@@ -232,8 +259,25 @@ private:
 	float subdivisionDivision = 0.0f;
 	float newContourPointThreshold = 0.0f;
 	float newBindingPointThreshold = 0.0f;
-	float rebindContourDistance = 0.0f;
+	float minRebindContourDistance = 0.0f;
+	float maxRebindContourDistance = 0.0f;
 	int pointsPerSegment = 0;
 	int bestBindingStep = 0;
+
+	float branchingNodePetioleS = 0.0f;
+	float branchingNodePetioleExpansion = 0.0f;
+	float branchingNodePetioleGrowth = 0.0f;
+	float newBranchPetioleEndS = 0.0f;
+	float newBranchPetioleEndExpansion = 0.0f;
+	float newBranchPetioleEndGrowth = 0.0f;
+	float newBranchPetioleAfterS = 0.0f;
+	float newBranchPetioleAfterExpansion = 0.0f;
+	float newBranchPetioleAfterGrowth = 0.0f;
+	float mainAxisPetioleEndS = 0.0f;
+	float mainAxisPetioleEndExpansion = 0.0f;
+	float mainAxisPetioleEndGrowth = 0.0f;
+	float mainAxisPetioleAfterS = 0.0f;
+	float mainAxisPetioleAfterExpansion = 0.0f;
+	float mainAxisPetioleAfterGrowth = 0.f;
 };
 

@@ -63,7 +63,7 @@ void Camera::processOrthoZoom(float zoomAmount) {
 }
 
 void Camera::processScroll(float yOffset) {
-	float zoomSpeed = 0.1f;
+	float zoomSpeed = 0.035f;
 	float zoomAmount = yOffset * zoomSpeed;
 
 	processOrthoZoom(zoomAmount);
