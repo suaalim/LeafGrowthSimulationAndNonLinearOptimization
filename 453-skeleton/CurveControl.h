@@ -35,6 +35,7 @@ public:
 	void setVisualization();
 	void visualization();
 
+	void snapshotOnCKey(GLFWwindow* window);
 	void handleSKey();
 	void pressSKey(int state);
 	void releaseSkey(int state);

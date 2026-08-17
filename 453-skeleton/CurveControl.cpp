@@ -636,6 +636,32 @@ void Simulation::handleAKey()
 	}
 }
 
+void Simulation::stepHeadless(float length)
+{
+	if (!subdivisionDone) {
+		simulateSubdivision();
+		subdivisionDone = true;
+	}
+	simulateGrowth(root->deltaTime);
+	updateSimulation();
+	if (g_pressed) animateRebuild();
+	rebuildContourGeometry();
+	rebuildDebugGeometry();
+}
+
+void Simulation::setVisualization() {
+	updateMarkerKeys(bindings, 10, contourMarkerKeys);
+}
+
+void Simulation::visualization() {
+	contourMarkers = buildContourMarkers(contourGeometry, bindings, contourMarkerKeys, 0.03f);
+	//std::vector<size_t> markerKeys;
+	//if (bindings.size() > 21) markerKeys.push_back(bindings[21].uniqueKey);
+	//if (bindings.size() > 11) markerKeys.push_back(bindings[11].uniqueKey);
+	//contourMarkers = buildContourMarkers(contourGeometry, bindings, markerKeys, 0.03f);
+}
+
+// saving results------------------------------
 void saveScreenshot(int width, int height) {
 	auto folderPath = "screenshots";
 	// Create screenshots directory if it doesn't exist
@@ -711,6 +737,112 @@ void Simulation::screenshot(GLFWwindow* window, bool automatic) {
 			lastScreenshot += std::chrono::seconds(3);
 		}
 	}
+}
+
+namespace fs = std::filesystem;
+
+// ---- Paths: adjust if your project ever moves ----
+namespace SnapshotConfig {
+	const fs::path buildDir = "D:/Code/C++/NewPhytologist2017/Code/out/build/x64-Debug";
+	const fs::path paramsDir = buildDir / "params";
+	const fs::path resultsDir = buildDir / "results";
+	const fs::path codeDir = "D:/Code/C++/NewPhytologist2017/Code/453-skeleton";
+	const std::vector<fs::path> codeFiles = {
+		codeDir / "SceneNode.cpp",
+		codeDir / "CurveControl.cpp"
+	};
+}
+
+std::string getTimestamp() {
+	auto now = std::time(nullptr);
+	auto tm = *std::localtime(&now);
+	std::ostringstream oss;
+	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+	return oss.str();
+}
+
+// Same pixel-grabbing logic as your saveScreenshot, but writes into a given folder
+void saveScreenshotTo(const fs::path& folderPath, int width, int height) {
+	fs::path filename = folderPath / "screenshot.png";
+
+	GLsizei nrChannels = 3;
+	GLsizei stride = nrChannels * width;
+	stride += (stride % 4) ? (4 - stride % 4) : 0; // Align to 4 bytes
+
+	std::vector<unsigned char> buffer(stride * height);
+	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+
+	std::vector<unsigned char> flipped(stride * height);
+	for (int row = 0; row < height; ++row) {
+		memcpy(&flipped[row * stride],
+			&buffer[(height - 1 - row) * stride],
+			stride);
+	}
+
+	stbi_write_png(filename.string().c_str(), width, height, nrChannels, flipped.data(), stride);
+	std::cout << "Saved screenshot: " << filename << std::endl;
+}
+
+// Copies params folder + code files + screenshot into results/<timestamp>/
+void saveSnapshot(GLFWwindow* window) {
+	using namespace SnapshotConfig;
+
+	if (!fs::exists(resultsDir)) {
+		fs::create_directories(resultsDir);
+	}
+
+	fs::path snapshotDir = resultsDir / getTimestamp();
+	fs::create_directories(snapshotDir);
+
+	// Copy params folder recursively
+	try {
+		if (fs::exists(paramsDir)) {
+			fs::copy(paramsDir, snapshotDir / "params",
+				fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+		}
+		else {
+			std::cerr << "Warning: params folder not found at " << paramsDir << std::endl;
+		}
+	}
+	catch (const fs::filesystem_error& e) {
+		std::cerr << "Error copying params: " << e.what() << std::endl;
+	}
+
+	// Copy code files
+	fs::path codeDestDir = snapshotDir / "code";
+	try {
+		fs::create_directories(codeDestDir);
+		for (const auto& file : codeFiles) {
+			if (fs::exists(file)) {
+				fs::copy_file(file, codeDestDir / file.filename(),
+					fs::copy_options::overwrite_existing);
+			}
+			else {
+				std::cerr << "Warning: code file not found: " << file << std::endl;
+			}
+		}
+	}
+	catch (const fs::filesystem_error& e) {
+		std::cerr << "Error copying code files: " << e.what() << std::endl;
+	}
+
+	// Screenshot
+	int width, height;
+	glfwGetFramebufferSize(window, &width, &height);
+	saveScreenshotTo(snapshotDir, width, height);
+
+	std::cout << "Snapshot saved to: " << snapshotDir << std::endl;
+}
+
+// Key handler — call this once per frame from your main loop, alongside screenshot()
+void Simulation::snapshotOnCKey(GLFWwindow* window) {
+	static bool previousCState = false;
+	bool currentCState = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
+
+	if (currentCState && !previousCState) {
+		saveSnapshot(window);
+	}
+	previousCState = currentCState;
 }
 
 void Simulation::saveContourGeometry(GLFWwindow* window) {
@@ -789,45 +921,4 @@ void Simulation::saveContourGeometry(GLFWwindow* window) {
 			std::cout << "Saved geometry data: " << filename << std::endl;
 		}
 	}
-}
-
-// state machine (script for simulation instructions)
-// each frame does each phase (case)
-enum class ScriptPhase {
-	Idle,
-	PressS,
-	AddBranch,
-	AddBranch2,
-	AddBranch3,
-	HoldG,
-	Done
-};
-
-ScriptPhase scriptPhase = ScriptPhase::Idle;
-float phaseElapsed = 0.0f;
-const float G_HOLD_DURATION = 1.0f; 
-
-void Simulation::stepHeadless(float length)
-{
-	if (!subdivisionDone) {
-		simulateSubdivision();
-		subdivisionDone = true;
-	}
-	simulateGrowth(root->deltaTime);
-	updateSimulation();
-	if (g_pressed) animateRebuild();
-	rebuildContourGeometry();
-	rebuildDebugGeometry();
-}
-
-void Simulation::setVisualization() {
-	updateMarkerKeys(bindings, 10, contourMarkerKeys);
-}
-
-void Simulation::visualization() {
-	contourMarkers = buildContourMarkers(contourGeometry, bindings, contourMarkerKeys, 0.03f);
-	//std::vector<size_t> markerKeys;
-	//if (bindings.size() > 21) markerKeys.push_back(bindings[21].uniqueKey);
-	//if (bindings.size() > 11) markerKeys.push_back(bindings[11].uniqueKey);
-	//contourMarkers = buildContourMarkers(contourGeometry, bindings, markerKeys, 0.03f);
 }

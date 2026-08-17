@@ -21,6 +21,7 @@
 #include "toml.hpp"
 #include "GLDebug.h"
 #include "panel.h"
+#include "windows.h"
 
 int counter = 0;
 
@@ -350,6 +351,7 @@ int main(int argc, char* argv[]) {
 			glEnable(GL_DEPTH_TEST);
 			sim.screenshot(window, false);   // have to call after scene is rendered
 			sim.saveContourGeometry(window);
+			sim.snapshotOnCKey(window);
 			//// sphere normals
 			//updateBuffers(sim.contourMarkers.normals.verts, sim.contourMarkers.normals.cols, sim.contourMarkers.normals.indices);
 			//glLineWidth(1.5f);
