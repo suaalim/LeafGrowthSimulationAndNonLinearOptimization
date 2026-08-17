@@ -79,7 +79,7 @@ float Simulation::computeMainAxisLength(SceneNode* root) {
 	return totalLength;
 }
 
-void Simulation::init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim) {
+void Simulation::init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim, const std::string& petiole) {
 	std::string lower = path;
 	std::transform(lower.begin(), lower.end(), lower.begin(),
 		[](unsigned char c) { return std::tolower(c); });
@@ -88,6 +88,7 @@ void Simulation::init(const std::string& path, bool isTxt, const std::string& ne
 	// when python runs simulation, the working directory is where the python code is, not here
 	NewBranchConfig::instance().load(newBranch);
 	SimulationConfig::instance().load(sim);
+	PetioleConfig::instance().load(petiole);
 
 	if (isTxt)
 	{
@@ -113,6 +114,7 @@ void Simulation::init(const std::string& path, bool isTxt, const std::string& ne
 
 	root->readNewBranchParameter();
 	root->readSimulationParameter();
+	root->readPetioleParameter();
 
 	auto contour = root->generateInitialContourControlPoints(root);  // generate contour points associated to root and leaf nodes
 	contour = root->midPoints(contour);
@@ -126,8 +128,51 @@ void Simulation::init(const std::string& path, bool isTxt, const std::string& ne
 
 	auto grouped = root->contourCatmullRomGrouped(contour, pairs);
 
-	bindings = root->bindInterpolatedContourToBranches(grouped);
+	if (root->perpendicularBinding) bindings = root->bindContourToBranches(grouped);
+	else bindings = root->bindInterpolatedContourToBranches(grouped);
 	bindings = root->addContourPoints(bindings);
+
+	// petiole
+	DivideBranchResult result2 = root->divideSingleBranch(root, root->children[0], false, root->mainAxisDivision1, 1);
+	if (result2.divided) {
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindContourWithBrokenBranch(root, result2.petiole, result2.results, index, bindings);
+		resetBool(root);
+	}
+	DivideBranchResult result3 = root->divideSingleBranch(root->children[0], root->children[0]->children[0], false, root->mainAxisDivision2, 4);
+	if (result3.divided) {
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindContourWithBrokenBranch(root, result3.petiole, result3.results, index, bindings);
+		resetBool(root);
+	}
+	DivideBranchResult result4 = root->divideSingleBranch(root->children[0]->children[0], root->children[0]->children[0]->children[0], false, 2.0, 5);
+	if (result4.divided) {
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindContourWithBrokenBranch(root, result4.petiole, result4.results, index, bindings);
+		resetBool(root);
+	}
+	DivideBranchResult result5 = root->divideSingleBranch(root->children[0]->children[0], root->children[0]->children[0]->children[0], false, root->mainAxisDivision3, 1);
+	if (result5.divided) {
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindContourWithBrokenBranch(root, result5.petiole, result5.results, index, bindings);
+		resetBool(root);
+	}
 }
 
 void Simulation::clearGeometry() {
@@ -153,13 +198,12 @@ void Simulation::updateSimulation()
 	branchingStructure.clear();
 	accumulateBranchingStructure(root, branchingStructure);
 
-	//bindings = root->addContourPoints(bindings);
+	bindings = root->addContourPoints(bindings);
 	//bindings = root->addContourPointsLargeBinding(bindings);
 }
 
-void Simulation::animateRebuild(float dt) {
-	root->animationPerFrameBinding(bindings, dt);
-	//root->animationPerFrameContour(bindings, dt, 2);
+void Simulation::animateRebuild() {
+	root->animationPerFrameBinding(bindings);
 	root->calculateNormalDirection(bindings);
 }
 
@@ -179,10 +223,7 @@ void Simulation::rebuildContourGeometry()
 	}
 
 	for (size_t i = 0; i < bindings.size(); i++) {
-		//if (bindings[i].uniqueKey >= 177) contourGeometry.cols.push_back(glm::vec3(0.f, 0.f, 1.f));
-		if (i == 384) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
-		else if (i == 418) contourGeometry.cols.push_back(glm::vec3(1.f, 1.f, 0.f));
-		else contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
+		contourGeometry.cols.push_back(glm::vec3(1.f, 0.f, 0.f));
 	}
 }
 
@@ -213,7 +254,6 @@ void Simulation::rebuildDebugGeometry()
 
 void Simulation::simulateGrowth(float dt)
 {
-	//g_pressed = true;
 	root->animate(dt);
 	root->updateBranch(
 		glm::mat4(1.0f),
@@ -225,7 +265,6 @@ void Simulation::simulateGrowth(float dt)
 
 void Simulation::simulateSubdivision()
 {
-	//while (root->divideBranch(root, 0.02f, 2.f, false)) {
 	DivideBranchResult result = root->divideBranch(root, false);
 	if (result.divided) {
 		pairs.clear();
@@ -233,18 +272,8 @@ void Simulation::simulateSubdivision()
 		newPairs.clear();
 		index = 0;
 		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-		//root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
-		root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
-		//if (addContour) {
-		//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
-		//	branchingStructure.clear();
-		//	accumulateBranchingStructure(root, branchingStructure);
-		//}
+		root->rebindContourWithBrokenBranch(root, result.petiole, result.results, index, bindings);
 		resetBool(root);
-		
-		//simulateGrowth(dt);
-		//updateSimulation(dt);
-		//if (g_pressed) animateRebuild(dt);
 	}
 }
 
@@ -266,16 +295,7 @@ void Simulation::handleSKey()
 			newPairs.clear();
 			index = 0;
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			//SceneNode* node = root->findMidNode(root);
-			//root->printTree(root, 0);
-			//std::cout << node->globalTransformation[3].x << ", " << node->globalTransformation[3].y << std::endl;
-			//root->rebindContourWithBrokenBranch(root, newPairs, index, bindings);
-			root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
-			//if (addContour) {
-			//	bindings = root->addNewContourToBindToNewBranchNode(bindings, pairs);
-			//	branchingStructure.clear();
-			//	accumulateBranchingStructure(root, branchingStructure);
-			//}
+			root->rebindContourWithBrokenBranch(root, result.petiole, result.results, index, bindings);
 			resetBool(root);
 		}
 	}
@@ -351,27 +371,26 @@ void Simulation::releaseSkey(int state) {
 //	}
 //}
 
-void Simulation::handleGKey(float dt)
+void Simulation::handleGKey()
 {
 	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_G);
 
 	if (state == GLFW_PRESS)
 	{
 		g_pressed = true;
-		root->animate(dt);
+		root->animate(root->deltaTime);
 	}
 
-	// NEED THIS, else code thinks G is always pressed
 	if (state == GLFW_RELEASE) {
 		g_pressed = false;
 	}
 }
 
-void Simulation::pressGKey(float dt, int state) {
+void Simulation::pressGKey(int state) {
 	if (state == GLFW_PRESS)
 	{
 		g_pressed = true;
-		simulateGrowth(dt);
+		simulateGrowth(root->deltaTime);
 	}
 }
 
@@ -397,6 +416,7 @@ void Simulation::handleGetContourInformation(const glm::vec3& worldPos, bool mou
 		else {
 			std::cout << "i: " << index << std::endl;
 			std::cout << "t: " << c->t << std::endl;
+			std::cout << "blend turned on?: " << c->blend << std::endl;
 			std::cout << "branching node marker?: " << c->branchingNodeMarker << std::endl;
 			std::cout << "blend begin: " << c->blendRegionBegining << std::endl;
 			std::cout << "blend end: " << c->blendRegionEnd << std::endl;
@@ -473,142 +493,127 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseCl
 	}
 } 
 
-void PrintSegments(const std::vector<std::tuple<SceneNode*, SceneNode*, int>>& segments)
-{
-	for (const auto& [node1, node2, value] : segments)
-	{
-		std::cout << "Node1: " << glm::vec3(node1->globalTransformation[3])
-			<< ", Node2: " << glm::vec3(node2->globalTransformation[3])
-			<< ", Value: " << value
-			<< '\n';
-	}
-}
-
-void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked, bool perpendicular)
+// do not use this anymore
+void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked)
 {
 	if (mouseClicked) {
 		ContourBinding* c = nullptr;
 		for (int i = 0; i < bindings.size(); i++) {
-			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-02) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-02)) {
+			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-03) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-03)) {
 				//std::cout << i << std::endl;
 				c = &bindings[i];
 				break;
 			}
 		}
-		//float xDifference = FLT_MAX;
-		//float yDifference = FLT_MAX;
-		//for (int i = 0; i < bindings.size(); i++) {
-		//	if ((abs(worldPos.x - bindings[i].contourPoint.x) <= xDifference) && (abs(worldPos.y - bindings[i].contourPoint.y) <= yDifference)) {
-		//		xDifference = abs(worldPos.x - bindings[i].contourPoint.x);
-		//		yDifference = abs(worldPos.y - bindings[i].contourPoint.y);
-		//		c = &bindings[i];
-		//	}
-		//}
 		if (c == nullptr) {
 			std::cout << "contour point not clicked" << std::endl;
 		}
-		//else if (!(c->parentNode->axisID == c->childNode->axisID && c->childNode->axisID == 0)) {
-		//	std::cout << "too close to another secondary axis" << std::endl;
-		//}
 		else {
-			ContourBinding pointToBreak;
-			if (perpendicular)
-				pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
-			else
-				pointToBreak = root->findBestBinding(root, c->contourPoint);
-			DivideBranchResult result = root->splitAtBinding(&pointToBreak);
-			if (result.divided)
-				pairs.clear();
-				root->labelBranches(root, pairs, index);
-				newPairs.clear();
-				index = 0;
-				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-				root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
-			// add new branch
-			SceneNode* newNode = root->addNewBranch(root, c, maxID);
+			processBranchAddition(c);
+		}
+	}
+}
+
+void Simulation::processBranchAddition(ContourBinding* c) {
+	ContourBinding pointToBreak;
+	if (root->perpendicularBranch)
+		pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
+	else
+		pointToBreak = root->findBestBinding(root, c->contourPoint);
+
+	DivideBranchResult result = root->splitAtBinding(&pointToBreak);
+	if (result.divided) {
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindContourWithBrokenBranch(root, result.petiole, result.results, index, bindings);
+	}
+
+	// add new branch
+	SceneNode* newNode = root->addNewBranch(root, c, maxID);
+	pairs.clear();
+	root->labelBranches(root, pairs, index);
+	newPairs.clear();
+	index = 0;
+	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+	root->rebindToNewBranch(newNode, root, c, bindings);
+	root->addContourOverride(bindings, newNode);
+	maxID = root->getMaxID(root);
+
+	// reorganize children (leftmost to rightmost)
+	index = 0;
+	pairs.clear();
+	root->labelBranches(root, pairs, index);
+	std::vector<ContourBinding*> entire;
+	for (int i = 0; i < bindings.size(); i++) {
+		entire.push_back(&bindings[i]);
+	}
+	root->calculateRebindingGlobal(entire);
+
+	// petiole
+	if (root->petiole) {
+		DivideBranchResult result2 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision1, 1);
+		if (result2.divided) {
 			pairs.clear();
 			root->labelBranches(root, pairs, index);
 			newPairs.clear();
 			index = 0;
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			root->rebindToNewBranch(newNode, root, c, bindings);
-			root->addContourOverride(bindings, newNode);
-			maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
-			
-			// reorganize children (leftmost to rightmost)
-			index = 0;
+			root->rebindContourWithBrokenBranch(root, result2.petiole, result2.results, index, bindings);
+			resetBool(root);
+		}
+		DivideBranchResult result3 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision2, 2);
+		if (result3.divided) {
 			pairs.clear();
 			root->labelBranches(root, pairs, index);
-
-			std::vector<ContourBinding*> entire;
-			for (int i = 0; i < bindings.size(); i++) {
-				entire.push_back(&bindings[i]);
-			}
-			root->calculateRebindingGlobal(entire);
-			root->indentationControl(bindings, 0.05f);  // use 0.05 
-			resetBool(root);
-
-			// update transformation for prev frame (delta time = 0)
-			root->animate(0);
+			newPairs.clear();
+			index = 0;
 			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			root->animationPerFrameBinding(bindings, 0);
+			root->rebindContourWithBrokenBranch(root, result3.petiole, result3.results, index, bindings);
+			resetBool(root);
+		}
+		DivideBranchResult result4 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision3, 3);
+		if (result4.divided) {
+			pairs.clear();
+			root->labelBranches(root, pairs, index);
+			newPairs.clear();
+			index = 0;
+			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+			root->rebindContourWithBrokenBranch(root, result4.petiole, result4.results, index, bindings);
+			resetBool(root);
 		}
 	}
+	if (root->blend) root->indentationControl(bindings);
+	resetBool(root);
+
+	root->animate(0);
+	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+	if (root->blend) root->animationPerFrameBinding(bindings);
+	else root->animationPerFrame(bindings, 0);
 }
 
-void Simulation::dynamicallyAddBranch(bool perpendicular) {
-	ContourBinding* c = root->findBranchAdditionPoints(root, bindings, 1.f, 0.5f);
-
+void Simulation::dynamicallyAddBranch() {
+	ContourBinding* c = root->findBranchAdditionPoints(root, bindings, root->newBranchDistance, root->newBranchExclusion);
 	if (c == nullptr) {
 		//std::cout << "contour point not clicked" << std::endl;
+		return;
 	}
-	else {
-		ContourBinding pointToBreak;
-		if (perpendicular)
-			pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
-		else
-			pointToBreak = root->findBestBinding(root, c->contourPoint);
-		DivideBranchResult result = root->splitAtBinding(&pointToBreak);
-		if (result.divided)
-			pairs.clear();
-		root->labelBranches(root, pairs, index);
-		newPairs.clear();
-		index = 0;
-		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-		root->rebindContourWithBrokenBranch(root, result.results, index, bindings);
-		// add new branch
-		SceneNode* newNode = root->addNewBranch(root, c, maxID);
-		pairs.clear();
-		root->labelBranches(root, pairs, index);
-		newPairs.clear();
-		index = 0;
-		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-		root->rebindToNewBranch(newNode, root, c, bindings);
-		root->addContourOverride(bindings, newNode);
-		maxID = root->getMaxID(root);  // update maxID after you add a new branch to reflect lastest ID
-
-		// reorganize children (leftmost to rightmost)
-		index = 0;
-		pairs.clear();
-		root->labelBranches(root, pairs, index);
-
-		std::vector<ContourBinding*> entire;
-		for (int i = 0; i < bindings.size(); i++) {
-			entire.push_back(&bindings[i]);
+	glm::vec3 originalPoint = c->contourPoint;
+	// need to capture symmetricTarget before processing c since the bindings will be modified
+	glm::vec3 symmetricTarget = glm::vec3(-originalPoint.x, originalPoint.y, originalPoint.z); 
+	processBranchAddition(c);
+	if (root->symmetricBranch) {
+		ContourBinding* symmetric = root->findSymmetricBinding(bindings, /*point=*/originalPoint, /*maxSearchDistance=*/-1.0f, /*mirrorZ=*/false);
+		if (symmetric != nullptr) {
+			processBranchAddition(symmetric);
 		}
-		root->calculateRebindingGlobal(entire);
-		root->indentationControl(bindings, 0.05f);  // use 0.05 
-		resetBool(root);
-
-		// update transformation for prev frame (delta time = 0)
-		root->animate(0);
-		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-		root->animationPerFrameBinding(bindings, 0);
 	}
 }
 
 // global rebinding
-void Simulation::handleAKey(float dt)
+void Simulation::handleAKey()
 {
 	int state;
 	if (root->rebindEveryFrame) {
@@ -626,22 +631,37 @@ void Simulation::handleAKey(float dt)
 		}
 		root->reorganizeChildrenLeft(root);
 		root->calculateRebindingGlobal(entire);
-		root->indentationControl(bindings, 0.05f);
+		if (root->blend) root->indentationControl(bindings);
 		resetBool(root);
-		//root->animate(0);
-		//root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-		//root->animationPerFrameBinding(bindings, 0);
 	}
 }
 
-float Simulation::getDeltaTime() {
-	return root->deltaTime;
+void Simulation::stepHeadless(float length)
+{
+	if (!subdivisionDone) {
+		simulateSubdivision();
+		subdivisionDone = true;
+	}
+	simulateGrowth(root->deltaTime);
+	updateSimulation();
+	if (g_pressed) animateRebuild();
+	rebuildContourGeometry();
+	rebuildDebugGeometry();
 }
 
-bool Simulation::getPerpendicularBranch() {
-	return root->perpendicularBranch;
+void Simulation::setVisualization() {
+	updateMarkerKeys(bindings, 10, contourMarkerKeys);
 }
 
+void Simulation::visualization() {
+	contourMarkers = buildContourMarkers(contourGeometry, bindings, contourMarkerKeys, 0.03f);
+	//std::vector<size_t> markerKeys;
+	//if (bindings.size() > 21) markerKeys.push_back(bindings[21].uniqueKey);
+	//if (bindings.size() > 11) markerKeys.push_back(bindings[11].uniqueKey);
+	//contourMarkers = buildContourMarkers(contourGeometry, bindings, markerKeys, 0.03f);
+}
+
+// saving results------------------------------
 void saveScreenshot(int width, int height) {
 	auto folderPath = "screenshots";
 	// Create screenshots directory if it doesn't exist
@@ -681,14 +701,148 @@ void saveScreenshot(int width, int height) {
 	std::cout << "Saved screenshot: " << filename << std::endl;
 }
 
-void Simulation::screenshot(GLFWwindow* window) {
-	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
-		//taking screenshot
-		int width, height;
-		glfwGetFramebufferSize(window, &width, &height);
-		saveScreenshot(width, height);
-		//screenshotRequested = false;
+void Simulation::screenshot(GLFWwindow* window, bool automatic) {
+	static bool automaticScreenshots = automatic;
+	static bool previousPState = false;
+	static auto lastScreenshot = std::chrono::steady_clock::now();
+
+	bool currentPState = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+
+	// Detect a single P key press
+	if (currentPState && !previousPState) {
+		automaticScreenshots = !automaticScreenshots;
+
+		// Take an immediate screenshot when enabled
+		if (automaticScreenshots) {
+			int width, height;
+			glfwGetFramebufferSize(window, &width, &height);
+			saveScreenshot(width, height);
+
+			lastScreenshot = std::chrono::steady_clock::now();
+		}
 	}
+
+	previousPState = currentPState;
+
+	// Automatically take screenshots every 3 seconds
+	if (automaticScreenshots) {
+		auto now = std::chrono::steady_clock::now();
+
+		if (now - lastScreenshot >= std::chrono::seconds(1)) {
+			int width, height;
+			glfwGetFramebufferSize(window, &width, &height);
+
+			saveScreenshot(width, height);
+
+			lastScreenshot += std::chrono::seconds(3);
+		}
+	}
+}
+
+namespace fs = std::filesystem;
+
+// ---- Paths: adjust if your project ever moves ----
+namespace SnapshotConfig {
+	const fs::path buildDir = "D:/Code/C++/NewPhytologist2017/Code/out/build/x64-Debug";
+	const fs::path paramsDir = buildDir / "params";
+	const fs::path resultsDir = buildDir / "results";
+	const fs::path codeDir = "D:/Code/C++/NewPhytologist2017/Code/453-skeleton";
+	const std::vector<fs::path> codeFiles = {
+		codeDir / "SceneNode.cpp",
+		codeDir / "CurveControl.cpp"
+	};
+}
+
+std::string getTimestamp() {
+	auto now = std::time(nullptr);
+	auto tm = *std::localtime(&now);
+	std::ostringstream oss;
+	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+	return oss.str();
+}
+
+// Same pixel-grabbing logic as your saveScreenshot, but writes into a given folder
+void saveScreenshotTo(const fs::path& folderPath, int width, int height) {
+	fs::path filename = folderPath / "screenshot.png";
+
+	GLsizei nrChannels = 3;
+	GLsizei stride = nrChannels * width;
+	stride += (stride % 4) ? (4 - stride % 4) : 0; // Align to 4 bytes
+
+	std::vector<unsigned char> buffer(stride * height);
+	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+
+	std::vector<unsigned char> flipped(stride * height);
+	for (int row = 0; row < height; ++row) {
+		memcpy(&flipped[row * stride],
+			&buffer[(height - 1 - row) * stride],
+			stride);
+	}
+
+	stbi_write_png(filename.string().c_str(), width, height, nrChannels, flipped.data(), stride);
+	std::cout << "Saved screenshot: " << filename << std::endl;
+}
+
+// Copies params folder + code files + screenshot into results/<timestamp>/
+void saveSnapshot(GLFWwindow* window) {
+	using namespace SnapshotConfig;
+
+	if (!fs::exists(resultsDir)) {
+		fs::create_directories(resultsDir);
+	}
+
+	fs::path snapshotDir = resultsDir / getTimestamp();
+	fs::create_directories(snapshotDir);
+
+	// Copy params folder recursively
+	try {
+		if (fs::exists(paramsDir)) {
+			fs::copy(paramsDir, snapshotDir / "params",
+				fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+		}
+		else {
+			std::cerr << "Warning: params folder not found at " << paramsDir << std::endl;
+		}
+	}
+	catch (const fs::filesystem_error& e) {
+		std::cerr << "Error copying params: " << e.what() << std::endl;
+	}
+
+	// Copy code files
+	fs::path codeDestDir = snapshotDir / "code";
+	try {
+		fs::create_directories(codeDestDir);
+		for (const auto& file : codeFiles) {
+			if (fs::exists(file)) {
+				fs::copy_file(file, codeDestDir / file.filename(),
+					fs::copy_options::overwrite_existing);
+			}
+			else {
+				std::cerr << "Warning: code file not found: " << file << std::endl;
+			}
+		}
+	}
+	catch (const fs::filesystem_error& e) {
+		std::cerr << "Error copying code files: " << e.what() << std::endl;
+	}
+
+	// Screenshot
+	int width, height;
+	glfwGetFramebufferSize(window, &width, &height);
+	saveScreenshotTo(snapshotDir, width, height);
+
+	std::cout << "Snapshot saved to: " << snapshotDir << std::endl;
+}
+
+// Key handler — call this once per frame from your main loop, alongside screenshot()
+void Simulation::snapshotOnCKey(GLFWwindow* window) {
+	static bool previousCState = false;
+	bool currentCState = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
+
+	if (currentCState && !previousCState) {
+		saveSnapshot(window);
+	}
+	previousCState = currentCState;
 }
 
 void Simulation::saveContourGeometry(GLFWwindow* window) {
@@ -767,112 +921,4 @@ void Simulation::saveContourGeometry(GLFWwindow* window) {
 			std::cout << "Saved geometry data: " << filename << std::endl;
 		}
 	}
-}
-
-// state machine (script for simulation instructions)
-// each frame does each phase (case)
-enum class ScriptPhase {
-	Idle,
-	PressS,
-	AddBranch,
-	AddBranch2,
-	AddBranch3,
-	HoldG,
-	Done
-};
-
-ScriptPhase scriptPhase = ScriptPhase::Idle;
-float phaseElapsed = 0.0f;
-const float G_HOLD_DURATION = 1.0f; 
-
-void Simulation::simulationInstructions(float dt) {
-	switch (scriptPhase) {
-		
-	case ScriptPhase::Idle:
-		scriptPhase = ScriptPhase::PressS;
-		break;
-
-	case ScriptPhase::PressS:
-		pressSKey(GLFW_PRESS);
-		releaseSkey(GLFW_RELEASE);
-		scriptPhase = ScriptPhase::AddBranch;
-		break;
-
-	case ScriptPhase::AddBranch:
-		handleAddBranchClick(glm::vec3(0.054f, 0.58057f, 0.0f), true, false);
-		//pressGKey(dt, GLFW_PRESS);   // g_pressed = true, first growth step
-		//phaseElapsed = 0.0f;
-		scriptPhase = ScriptPhase::AddBranch2;
-		break;
-
-	case ScriptPhase::AddBranch2:
-		handleAddBranchClick(glm::vec3(-0.054f, 0.58057f, 0.0f), true, false);
-		//pressGKey(dt, GLFW_PRESS);   // g_pressed = true, first growth step
-		//phaseElapsed = 0.0f;
-		scriptPhase = ScriptPhase::HoldG;
-		break;
-
-	case ScriptPhase::AddBranch3:
-		handleAddBranchClick(glm::vec3(-0.045f, 0.88057f, 0.0f), true, false);
-		pressGKey(dt, GLFW_PRESS);   // g_pressed = true, first growth step
-		phaseElapsed = 0.0f;
-		scriptPhase = ScriptPhase::HoldG;
-		break;
-
-	case ScriptPhase::HoldG:
-		simulateGrowth(dt);
-		animateRebuild(dt);
-		phaseElapsed += dt;
-		if (phaseElapsed >= G_HOLD_DURATION) {
-			releaseGKey(GLFW_RELEASE);
-			scriptPhase = ScriptPhase::Done;
-		}
-		break;
-	
-	/*
-	case ScriptPhase::Idle:
-		pressGKey(dt, GLFW_PRESS);   
-		phaseElapsed = 0.0f;
-		scriptPhase = ScriptPhase::HoldG;
-		break;
-
-	case ScriptPhase::HoldG:
-		simulateGrowth(dt);
-		animateRebuild(dt);
-		phaseElapsed += dt;
-
-		if (phaseElapsed >= G_HOLD_DURATION) {
-			releaseGKey(GLFW_RELEASE);
-			scriptPhase = ScriptPhase::Done;
-		}
-		break;
-	*/
-	case ScriptPhase::Done:
-		break;
-	}
-}
-
-void Simulation::stepHeadless(float dt, float length)
-{
-	if (!subdivisionDone) {
-		simulateSubdivision();
-		subdivisionDone = true;
-	}
-	simulateGrowth(dt);
-	updateSimulation();
-	if (g_pressed) animateRebuild(dt);
-	rebuildContourGeometry();
-	rebuildDebugGeometry();
-}
-
-void Simulation::setVisualization() {
-	updateMarkerKeys(bindings, 10, contourMarkerKeys);
-}
-
-void Simulation::visualization() {
-	contourMarkers = buildContourMarkers(contourGeometry, bindings, contourMarkerKeys, 0.03f);
-	//std::vector<size_t> markerKeys;
-	//if (bindings.size() > 21) markerKeys.push_back(bindings[21].uniqueKey);
-	//if (bindings.size() > 11) markerKeys.push_back(bindings[11].uniqueKey);
-	//contourMarkers = buildContourMarkers(contourGeometry, bindings, markerKeys, 0.03f);
 }

@@ -51,8 +51,11 @@ bool SimulationConfig::load(const std::string& filename)
 		newBindingPointThreshold =
 			static_cast<float>(tbl["new_binding_point_threshold"].value_or(0.0));
 
-		rebindContourDistance =
-			static_cast<float>(tbl["rebind_contour_to_new_branch_distance"].value_or(0.0));
+		minRebindContourDistance =
+			static_cast<float>(tbl["min_rebind_to_new"].value_or(0.0));
+
+		maxRebindContourDistance =
+			static_cast<float>(tbl["max_rebind_to_new"].value_or(0.0));
 
 		deltaTime =
 			static_cast<float>(tbl["delta_time"].value_or(0.0));
@@ -71,6 +74,107 @@ bool SimulationConfig::load(const std::string& filename)
 
 		perpendicularBranch =
 			static_cast<int>(tbl["perpendicular_branch"].value_or(0));
+
+		blend =
+			static_cast<int>(tbl["blend"].value_or(0));
+
+		indentationWindow =
+			static_cast<float>(tbl["indentation_window"].value_or(0.0));
+
+		newBranchDistance =
+			static_cast<float>(tbl["new_branch_distance"].value_or(0.0));
+
+		newBranchExclusion =
+			static_cast<float>(tbl["new_branch_exclusion"].value_or(0.0));
+
+		petiole =
+			static_cast<int>(tbl["petiole"].value_or(0));
+
+		symmetricBranch =
+			static_cast<int>(tbl["symmetric_branch"].value_or(0));
+
+		perpendicularBinding =
+			static_cast<int>(tbl["perpendicular_binding"].value_or(0));
+
+		return true;
+	}
+	catch (const toml::parse_error& err)
+	{
+		std::cerr << "TOML parse error: "
+			<< err.description()
+			<< std::endl;
+		return false;
+	}
+}
+
+bool PetioleConfig::load(const std::string& filename)
+{
+	try
+	{
+		auto tbl = toml::parse_file(filename);
+
+		branchingNodeS =
+			static_cast<float>(tbl["branching_node_S"].value_or(0.0));
+
+		branchingNodeExpansion =
+			static_cast<float>(tbl["branching_node_expansion"].value_or(0.0));
+
+		branchingNodeGrowth =
+			static_cast<float>(tbl["branching_node_growth"].value_or(0.0));
+
+		newBranchPetioleEndS =
+			static_cast<float>(tbl["new_branch_petiole_end_S"].value_or(0.0));
+
+		newBranchPetioleEndExpansion =
+			static_cast<float>(tbl["new_branch_petiole_end_expansion"].value_or(0.0));
+
+		newBranchPetioleEndGrowth =
+			static_cast<float>(tbl["new_branch_petiole_end_growth"].value_or(0.0));
+
+		newBranchPetioleAfterS =
+			static_cast<float>(tbl["new_branch_petiole_after_S"].value_or(0.0));
+
+		newBranchPetioleAfterExpansion =
+			static_cast<float>(tbl["new_branch_petiole_after_expansion"].value_or(0));
+
+		newBranchPetioleAfterGrowth =
+			static_cast<float>(tbl["new_branch_petiole_after_growth"].value_or(0));
+
+		mainAxisPetioleEndS =
+			static_cast<float>(tbl["main_axis_petiole_end_S"].value_or(0));
+
+		mainAxisPetioleEndExpansion =
+			static_cast<float>(tbl["main_axis_petiole_end_expansion"].value_or(0));
+
+		mainAxisPetioleEndGrowth =
+			static_cast<float>(tbl["main_axis_petiole_end_growth"].value_or(0));
+
+		mainAxisPetioleAfterS =
+			static_cast<float>(tbl["main_axis_petiole_after_S"].value_or(0));
+
+		mainAxisPetioleAfterExpansion =
+			static_cast<float>(tbl["main_axis_petiole_after_expansion"].value_or(0.0));
+
+		mainAxisPetioleAfterGrowth =
+			static_cast<float>(tbl["main_axis_petiole_after_growth"].value_or(0.0));
+
+		newBranchDivision1 =
+			static_cast<float>(tbl["new_branch_division_1"].value_or(0.0));
+
+		newBranchDivision2 =
+			static_cast<float>(tbl["new_branch_division_2"].value_or(0.0));
+
+		newBranchDivision3 =
+			static_cast<float>(tbl["new_branch_division_3"].value_or(0.0));
+
+		mainAxisDivision1 =
+			static_cast<float>(tbl["main_axis_division_1"].value_or(0.0));
+
+		mainAxisDivision2 =
+			static_cast<float>(tbl["main_axis_division_2"].value_or(0.0));
+
+		mainAxisDivision3 =
+			static_cast<float>(tbl["main_axis_division_3"].value_or(0.0));
 
 		return true;
 	}
@@ -244,6 +348,7 @@ bool PathsConfig::load(const std::string& filename)
 		vertShader = paths["vertShader"].value_or(std::string(""));
 		newBranchParam = paths["newBranchParam"].value_or(std::string(""));
 		simParam = paths["simParam"].value_or(std::string(""));
+		petioleParam = paths["petioleParam"].value_or(std::string(""));
 
 		return true;
 	}

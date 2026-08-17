@@ -21,6 +21,7 @@
 #include "toml.hpp"
 #include "GLDebug.h"
 #include "panel.h"
+#include "windows.h"
 
 int counter = 0;
 
@@ -251,12 +252,10 @@ int main(int argc, char* argv[]) {
 
 		Simulation sim;
 		isTxt = true;
-		sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
+		sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam, PathsConfig::get().petioleParam);
 		//sim.setVisualization();
 		//float lastTime = glfwGetTime();
-		float deltaTime = sim.getDeltaTime();
 		bool grow = true;  // cannot grow and subdivide at the same time
-		bool perpendicularBranch = sim.getPerpendicularBranch();
 		while (!glfwWindowShouldClose(window)) {
 			glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -272,16 +271,16 @@ int main(int argc, char* argv[]) {
 			glUseProgram(shader);
 			glUniformMatrix4fv(glGetUniformLocation(shader, "viewProj"), 1, GL_FALSE, glm::value_ptr(viewProj));
 			if (grow) {
-				sim.handleGKey(deltaTime);
+				sim.handleGKey();
 				grow = false;
 			}
 			else {
 				sim.handleSKey();
-				sim.handleAKey(deltaTime);
+				sim.handleAKey();
 				grow = true;
 			}
 			
-			sim.handleRemoveBranchClick(worldPos, clickedToRemove);
+			//sim.handleRemoveBranchClick(worldPos, clickedToRemove);
 			sim.handleGetContourInformation(worldPos, clickedToRemove);
 			clickedToRemove = false;
 			static bool simulateClick = true;
@@ -292,11 +291,11 @@ int main(int argc, char* argv[]) {
 			//	clickedToAdd = true;
 			//	simulateClick = false;   // only simulate once
 			//}
-			//sim.handleAddBranchClick(worldPos, clickedToAdd, perpendicularBranch);
-			//clickedToAdd = false;
-			sim.dynamicallyAddBranch(perpendicularBranch);
+			sim.handleAddBranchClick(worldPos, clickedToAdd);
+			clickedToAdd = false;
+			sim.dynamicallyAddBranch();
 
-			sim.handleAKey(deltaTime);
+			sim.handleAKey();
 			/*if (sim.g_pressed) {
 				sim.animateRebuild(deltaTime);
 			}*/
@@ -305,7 +304,7 @@ int main(int argc, char* argv[]) {
 			//sim.simulationInstructions(deltaTime);
 			sim.updateSimulation();
 			if (sim.g_pressed) {
-				sim.animateRebuild(deltaTime);
+				sim.animateRebuild();
 			}
 
 			sim.clearGeometry();
@@ -350,8 +349,9 @@ int main(int argc, char* argv[]) {
 			glLineWidth(1.5f);
 			glDrawElements(GL_LINES, sim.contourMarkers.referenceCircles.indices.size(), GL_UNSIGNED_INT, 0);
 			glEnable(GL_DEPTH_TEST);
-			sim.screenshot(window);   // have to call after scene is rendered
+			sim.screenshot(window, false);   // have to call after scene is rendered
 			sim.saveContourGeometry(window);
+			sim.snapshotOnCKey(window);
 			//// sphere normals
 			//updateBuffers(sim.contourMarkers.normals.verts, sim.contourMarkers.normals.cols, sim.contourMarkers.normals.indices);
 			//glLineWidth(1.5f);
@@ -472,7 +472,7 @@ int main(int argc, char* argv[]) {
 		//float lastTime = glfwGetTime();
 
 		Simulation sim;
-		sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam);
+		sim.init(filePath, isTxt, PathsConfig::get().newBranchParam, PathsConfig::get().simParam, PathsConfig::get().petioleParam);
 		auto startTime = std::chrono::high_resolution_clock::now();
 		auto lastTime = startTime;
 		const float maxDuration = 0.001f; // seconds
@@ -504,7 +504,7 @@ int main(int argc, char* argv[]) {
 			//float deltaTime = frameElapsed.count();
 			float deltaTime = 0.0002f;
 			//lastTime = currentTime;
-			sim.stepHeadless(deltaTime, 1.0f);
+			sim.stepHeadless(1.0f);
 			accumulatedTime += deltaTime;
 
 			//glPointSize(5);

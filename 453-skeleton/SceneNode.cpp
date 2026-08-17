@@ -1,19 +1,15 @@
 #include "SceneNode.h"
-
 #include "Geometry.h"
 #include "Log.h"
 #include "Panel.h"
 #include "ShaderProgram.h"
 #include "Window.h"
-
 #include <imgui.h>
 #include <memory>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <glm/gtc/type_ptr.hpp>
 #include <cstdlib>
-
-#include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/spline.hpp>
 #include <map>
@@ -24,7 +20,6 @@
 #include <fstream>
 #include <sstream>
 #include <regex>
-#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <functional>
 #include "toml.hpp"
@@ -49,22 +44,18 @@ void printMat4(const glm::mat4& mat) {
 glm::mat4 calculateAnimationMatrix(ContourBinding c1) {
 	return (c1.blending) * c1.childNode->marginTransformation + (1 - (c1.blending)) * c1.parentNode->marginTransformation*glm::toMat4(c1.childNode->localRotation);
 	// without applying child's localRotation, you are blending the local coordinate frame too
-	//return (c1.blending) * (c1.blending) * c1.childNode->marginTransformation + (1 - c1.blending) * (1 - c1.blending) * c1.parentNode->marginTransformation;
 }
 
 glm::mat4 calculateAnimationMatrixForNewPoint(float blending, SceneNode* branch) {
 	return  blending * branch->marginTransformation + (1 - blending) * branch->parent->marginTransformation * glm::toMat4(branch->localRotation);
-	//return  blending * blending * branch->marginTransformation + (1 - blending) * (1 - blending) * branch->parent->marginTransformation;
 }
 
 glm::vec3 calculateClosestPoint(ContourBinding c1) {
 	return (c1.t) * c1.childNode->globalTransformation[3] + (1 - c1.t) * c1.parentNode->globalTransformation[3];
-	//return (c1.t * c1.t) * c1.childNode->globalTransformation[3] + (1 - c1.t) * (1 - c1.t) * c1.parentNode->globalTransformation[3];
 }
 
 glm::vec3 calculateClosestPointForNewPoint(float t, SceneNode* branch) {
 	return t * branch->globalTransformation[3] + (1 - (t)) * branch->parent->globalTransformation[3];
-	//return t * t * branch->globalTransformation[3] + (1 - t) * (1 - t) * branch->parent->globalTransformation[3];
 }
 
 float calculateT(glm::vec3 P, glm::vec3 Q, glm::vec3 R) {
@@ -84,7 +75,7 @@ glm::vec3 intersectionPoint(glm::vec3 P, glm::vec3 Q, glm::vec3 R) {
 	}
 }
 
-// to clone the leaf structure if we are not adding new branches (because conditions were not met)
+// to clone the leaf structure if we are not adding new branches (because conditions were not met) -> not used
 SceneNode* SceneNode::cloneSceneNode(SceneNode* node, SceneNode* parent, std::unordered_map<SceneNode*, SceneNode*>& nodeMap) {
 	if (!node) return nullptr;
 
@@ -148,7 +139,6 @@ std::vector<ContourBinding> SceneNode::rebindContour(const std::vector<ContourBi
 	return reboundBindings;
 }
 
-
 // Scene Graph Structure
 SceneNode::SceneNode() : localTranslation(1.0f), localRotation(1.0f, 0.0f, 0.0f, 0.0f), localScaling(1.0f), parent(nullptr) {}
 
@@ -189,13 +179,48 @@ void SceneNode::readSimulationParameter() {
 	subdivisionDivision = config.getSubdivisionDivision();
 	newContourPointThreshold = config.getNewContourPointThreshold();
 	newBindingPointThreshold = config.getNewBindingPointThreshold();
-	rebindContourDistance = config.getRebindContourDistance();
+	minRebindContourDistance = config.getMinRebindContourDistance();
+	maxRebindContourDistance = config.getMaxRebindContourDistance();
 	deltaTime = config.getDeltaTime();
 	pointsPerSegment = config.getPointsPerSegment();
 	bestBindingStep = config.getBestBindingStep();
 	subdivideBranch = static_cast<bool>(config.getsubdivideBranch());
 	rebindEveryFrame = static_cast<bool>(config.getRebindEveryFrame());
 	perpendicularBranch = static_cast<bool>(config.getPerpendicularBranch());
+	blend = static_cast<bool>(config.getBlend());
+	indentationWindow = config.getIndentationWindow();
+	newBranchDistance = config.getNewBranchDistance();
+	newBranchExclusion = config.getNewBranchExclusion();
+	petiole = static_cast<bool>(config.getPetiole());
+	petiole = static_cast<bool>(config.getPetiole());
+	symmetricBranch = static_cast<bool>(config.getSymmetricBranch());
+	perpendicularBinding = static_cast<bool>(config.getPerpendicularBinding());
+}
+
+void SceneNode::readPetioleParameter() {
+	PetioleConfig& config = PetioleConfig::instance();
+
+	branchingNodePetioleS = config.getBranchingNodeS();
+	branchingNodePetioleExpansion = config.getBranchingNodeExpansion();
+	branchingNodePetioleGrowth = config.getBranchingNodeGrowth();
+	newBranchPetioleEndS = config.getNewBranchPetioleEndS();
+	newBranchPetioleEndExpansion = config.getNewBranchPetioleEndExpansion();
+	newBranchPetioleEndGrowth = config.getNewBranchPetioleEndGrowth();
+	newBranchPetioleAfterS = config.getNewBranchPetioleAfterS();
+	newBranchPetioleAfterExpansion = config.getNewBranchPetioleAfterExpansion();
+	newBranchPetioleAfterGrowth = config.getNewBranchPetioleAfterGrowth();
+	mainAxisPetioleEndS = config.getMainAxisPetioleEndS();
+	mainAxisPetioleEndExpansion = config.getMainAxisPetioleEndExpansion();
+	mainAxisPetioleEndGrowth = config.getMainAxisPetioleEndGrowth();
+	mainAxisPetioleAfterS = config.getMainAxisPetioleAfterS();
+	mainAxisPetioleAfterExpansion = config.getMainAxisPetioleAfterExpansion();
+	mainAxisPetioleAfterGrowth = config.getMainAxisPetioleAfterGrowth();
+	newBranchDivision1 = config.getNewBranchDivision1();
+	newBranchDivision2 = config.getNewBranchDivision2();
+	newBranchDivision3 = config.getNewBranchDivision3();
+	mainAxisDivision1 = config.getMainAxisDivision1();
+	mainAxisDivision2 = config.getMainAxisDivision2();
+	mainAxisDivision3 = config.getMainAxisDivision3();
 }
 
 // branching structure parameter
@@ -233,6 +258,8 @@ SceneNode* SceneNode::createBranchingStructure(
 	node->positionOnBranch = 0.f;
 	node->axisID = 0;
 	node->branchID = 0;
+	node->level = 0;
+	node->rebindContourDistance = 0.015;
 
 	// Loop over children of this node
 	for (int childIndex : parentChildPairs[nodeIndex]) {
@@ -430,6 +457,101 @@ void SceneNode::incrementBranchIDsOnAxis(SceneNode* node, int axisID)
 	}
 }
 
+// creates midNode at splitPos along node->child edge, rewires child.
+SceneNode* SceneNode::subdivideEdge(SceneNode* node, SceneNode* child,
+	const glm::vec3& splitPos,
+	bool bidirectionalGrowth,
+	int zeroInterpolatedValues) {
+	glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
+	glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
+
+	float fullDist = glm::length(childPos - parentPos);
+	float t = (fullDist > 1e-8f) ? (glm::length(splitPos - parentPos) / fullDist) : 0.0f;
+
+	SceneNode* midNode = new SceneNode();
+	midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
+	midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(splitPos - parentPos)));
+	midNode->localRotation = child->localRotation;
+
+	if (zeroInterpolatedValues == 1) { // branching node
+		midNode->S = branchingNodePetioleS;
+		midNode->expansionFactor = branchingNodePetioleExpansion;
+		midNode->growthFactor = branchingNodePetioleGrowth;
+	}
+	else if (zeroInterpolatedValues == 2) { // end of petiole region
+		midNode->S = newBranchPetioleEndS;
+		midNode->expansionFactor = newBranchPetioleEndExpansion;
+		midNode->growthFactor = newBranchPetioleEndGrowth;
+	}
+	else if (zeroInterpolatedValues == 3) { // right after petiole
+		midNode->S = newBranchPetioleAfterS;
+		midNode->expansionFactor = newBranchPetioleAfterExpansion;
+		midNode->growthFactor = newBranchPetioleAfterGrowth;
+	}
+	else if (zeroInterpolatedValues == 4) { // end of petiole region for main axis
+		midNode->S = mainAxisPetioleEndS;
+		midNode->expansionFactor = mainAxisPetioleEndExpansion;
+		midNode->growthFactor = mainAxisPetioleEndGrowth;
+	}
+	else if (zeroInterpolatedValues == 5) { // right after petiole for main axis
+		midNode->S = mainAxisPetioleAfterS;
+		midNode->expansionFactor = mainAxisPetioleAfterExpansion;
+		midNode->growthFactor = mainAxisPetioleAfterGrowth;
+	}
+	else if (zeroInterpolatedValues == 6) { // right after petiole for main axis
+		midNode->S = 0.0;
+		midNode->expansionFactor = 0.0;
+		midNode->growthFactor = 0.0;
+	}
+	else {
+		midNode->S = glm::mix(node->S, child->S, t);
+		midNode->expansionFactor = glm::mix(node->expansionFactor, child->expansionFactor, t);
+		midNode->growthFactor = glm::mix(node->growthFactor, child->growthFactor, t);
+	}
+	midNode->positionOnBranch = glm::mix(node->positionOnBranch, child->positionOnBranch, t);
+	if (bidirectionalGrowth) {
+		midNode->S = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
+	}
+	midNode->rotationAngle = child->rotationAngle;
+	midNode->animationDirection = child->animationDirection;
+	midNode->animationAngle = child->animationAngle;
+	midNode->animateRotation = child->animateRotation;
+	midNode->animationScaling = 1;
+	midNode->animateScaling = glm::mat4(1.0);
+	midNode->axisID = child->axisID;
+	midNode->branchID = node->branchID + 1;
+	midNode->level = child->level;
+	midNode->rebindContourDistance = child->rebindContourDistance;
+	incrementBranchIDsOnAxis(child, node->axisID);
+
+	child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
+	child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(childPos - splitPos)));
+	child->localRotation = glm::mat4(1.f);
+	child->rotationAngle = 0;
+	child->animationDirection = 0;
+	child->animationAngle = 0.f;
+	child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+	child->animationScaling = 1;
+	child->animateScaling = glm::mat4(1.0);
+	child->expansion = glm::mat4(1.f);
+	child->expansionAmount = 1.f;
+	child->growth = glm::mat4(1.f);
+	child->growthAmount = 1.f;
+	if (bidirectionalGrowth) {
+		child->S = positionalInformationFunctionSigmoid(child->positionOnBranch);
+	}
+
+	midNode->addChild(child);
+	midNode->parent = node;
+
+	node->midBranch = true;
+	midNode->midBranch = true;
+	child->midBranch = true;
+
+	return midNode;
+}
+
+// subdivide entire branching structure recursively
 DivideBranchResult SceneNode::divideBranch(SceneNode* node, bool bidirectionalGrowth) {
 	std::vector<SceneNode*> originalChildren = node->children;
 	std::vector<SceneNode*> updatedChildren;
@@ -443,55 +565,9 @@ DivideBranchResult SceneNode::divideBranch(SceneNode* node, bool bidirectionalGr
 
 		if (distance > subdivisionThreshold) {
 			dividedLocal = true;
-			SceneNode* midNode = new SceneNode();
-			glm::vec3 midPos = glm::mix(parentPos, childPos, 1 / subdivisionDivision);
-
-			midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-			midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - parentPos)));
-			midNode->localRotation = child->localRotation;
-			midNode->S = glm::mix(node->S, child->S, 1 / subdivisionDivision);
-			midNode->expansionFactor = glm::mix(node->expansionFactor, child->expansionFactor, 1 / subdivisionDivision);
-			midNode->growthFactor = glm::mix(node->growthFactor, child->growthFactor, 1 / subdivisionDivision);
-			midNode->positionOnBranch = glm::mix(node->positionOnBranch, child->positionOnBranch, 1 / subdivisionDivision);
-			if (bidirectionalGrowth) {
-				midNode->S = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
-			}
-			midNode->rotationAngle = child->rotationAngle;
-			midNode->animationDirection = child->animationDirection;
-			midNode->animationAngle = child->animationAngle;
-			midNode->animateRotation = child->animateRotation;
-			midNode->animationScaling = 1;
-			midNode->animateScaling = glm::mat4(1.0);
-			midNode->axisID = child->axisID;
-			midNode->branchID = node->branchID + 1;
-			incrementBranchIDsOnAxis(child, node->axisID);
-
-			child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-			child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - childPos)));
-			child->localRotation = glm::mat4(1.f);
-			child->rotationAngle = 0;
-			child->animationDirection = 0;
-			child->animationAngle = 0.f;
-			child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-			child->animationScaling = 1;
-			child->animateScaling = glm::mat4(1.0);
-			child->expansion = glm::mat4(1.f);
-			child->expansionAmount = 1.f;
-			child->growth = glm::mat4(1.f);
-			child->growthAmount = 1.f;
-			if (bidirectionalGrowth) {
-				child->S = positionalInformationFunctionSigmoid(child->positionOnBranch);
-			}
-
-			midNode->addChild(child);
-			midNode->parent = node;
+			glm::vec3 splitPos = glm::mix(parentPos, childPos, 1.0f / subdivisionDivision);
+			SceneNode* midNode = subdivideEdge(node, child, splitPos, bidirectionalGrowth, 0);
 			updatedChildren.push_back(midNode);
-
-			node->midBranch = true;
-			midNode->midBranch = true;
-			child->midBranch = true;
-
-			// record this subdivision
 			localResults.push_back({ node, midNode, child });
 		}
 		else {
@@ -503,326 +579,35 @@ DivideBranchResult SceneNode::divideBranch(SceneNode* node, bool bidirectionalGr
 	for (SceneNode* child : originalChildren) {
 		DivideBranchResult childResult = divideBranch(child, bidirectionalGrowth);
 		dividedLocal = dividedLocal || childResult.divided;
-		// merge child's results into ours
-		localResults.insert(localResults.end(),
-			childResult.results.begin(),
-			childResult.results.end());
+		localResults.insert(localResults.end(), childResult.results.begin(), childResult.results.end());
 	}
 	divided = dividedLocal;
-	return { dividedLocal, localResults };
+	return { dividedLocal, false, localResults };
 }
 
-//bool SceneNode::divideBranch(SceneNode* node, bool bidirectionalGrowth) {
-//	// recurse on original children
-//	std::vector<SceneNode*> originalChildren = node->children;
-//	std::vector<SceneNode*> updatedChildren;
-//	divided = false;
-//
-//	for (SceneNode* child : originalChildren) {
-//		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
-//		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
-//		float distance = glm::length(childPos - parentPos);
-//
-//		if (distance > subdivisionThreshold) {
-//			divided = true;
-//
-//			SceneNode* midNode = new SceneNode();
-//			glm::vec3 midPos = glm::mix(parentPos, childPos, 1 / subdivisionDivision);
-//			// midNode inherits from child
-//			midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-//			midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - parentPos)));
-//			midNode->localRotation = child->localRotation;
-//			midNode->S = glm::mix(node->S, child->S, 1 / subdivisionDivision);
-//			midNode->expansionFactor = glm::mix(node->expansionFactor, child->expansionFactor, 1 / subdivisionDivision);
-//			midNode->growthFactor = glm::mix(node->growthFactor, child->growthFactor, 1 / subdivisionDivision);
-//			midNode->positionOnBranch = glm::mix(node->positionOnBranch, child->positionOnBranch, 1 / subdivisionDivision);
-//			if (bidirectionalGrowth) {
-//				midNode->S = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
-//				//midNode->expansionFactor = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
-//				//midNode->expansionFactor *= 0.5f;
-//			}
-//			midNode->rotationAngle = child->rotationAngle;
-//			midNode->animationDirection = child->animationDirection;
-//			midNode->animationAngle = child->animationAngle;
-//			midNode->animateRotation = child->animateRotation;
-//			midNode->animationScaling = 1;
-//			midNode->animateScaling = glm::mat4(1.0);
-//			midNode->axisID = child->axisID;
-//			midNode->branchID = node->branchID + 1;
-//
-//			incrementBranchIDsOnAxis(child, node->axisID);
-//			// child set to identity
-//			child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-//			child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - childPos)));
-//			child->localRotation = glm::mat4(1.f);
-//			child->rotationAngle = 0;
-//			child->animationDirection = 0;
-//			child->animationAngle = 0.f;
-//			child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-//			child->animationScaling = 1;
-//			child->animateScaling = glm::mat4(1.0);
-//			child->expansion = glm::mat4(1.f);
-//			child->expansionAmount = 1.f;
-//			child->growth = glm::mat4(1.f);
-//			child->growthAmount = 1.f;
-//			if (bidirectionalGrowth) {
-//				child->S = positionalInformationFunctionSigmoid(child->positionOnBranch);
-//				//child->expansionFactor = positionalInformationFunctionSigmoid(child->positionOnBranch);
-//				//child->expansionFactor *= 0.5f;
-//			}
-//
-//			midNode->addChild(child);
-//			midNode->parent = node;
-//			updatedChildren.push_back(midNode);
-//
-//			// distinguish as new branch
-//			node->midBranch = true;
-//			midNode->midBranch = true;
-//			child->midBranch = true;
-//		}
-//		else {
-//			updatedChildren.push_back(child);
-//		}
-//	}
-//
-//	node->children = updatedChildren;
-//
-//	for (SceneNode* child : originalChildren) {
-//		divided = divided || divideBranch(child, bidirectionalGrowth);
-//	}
-//	return divided;
-//}
+// petiole region
+DivideBranchResult SceneNode::divideSingleBranch(SceneNode* node, SceneNode* child, bool bidirectionalGrowth, float region, int rates) {
+	glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
+	glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
+	glm::vec3 splitPos = glm::mix(parentPos, childPos, 1.0f / region);
 
-//bool SceneNode::divideBranch(SceneNode* node, float threshold, float division, bool bidirectionalGrowth) {
-//	for (SceneNode* child : node->children) {
-//		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
-//		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
-//
-//		if (glm::length(childPos - parentPos) > threshold) {
-//			glm::vec3 midPos = glm::mix(parentPos, childPos, 1.0f / division);
-//
-//			SceneNode* midNode = new SceneNode();
-//			// midNode inherits from child
-//			midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-//			midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - parentPos)));
-//			midNode->localRotation = child->localRotation;
-//			midNode->S = glm::mix(node->S, child->S, 1 / division);
-//			midNode->expansionFactor = glm::mix(node->expansionFactor, child->expansionFactor, 1 / division);
-//			midNode->growthFactor = glm::mix(node->growthFactor, child->growthFactor, 1 / division);
-//			midNode->positionOnBranch = glm::mix(node->positionOnBranch, child->positionOnBranch, 1 / division);
-//			if (bidirectionalGrowth) {
-//				midNode->S = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
-//				//midNode->expansionFactor = positionalInformationFunctionSigmoid(midNode->positionOnBranch);
-//				//midNode->expansionFactor *= 0.5f;
-//			}
-//			midNode->rotationAngle = child->rotationAngle;
-//			midNode->animationDirection = child->animationDirection;
-//			midNode->animationAngle = child->animationAngle;
-//			midNode->animateRotation = child->animateRotation;
-//			midNode->animationScaling = 1;
-//			midNode->animateScaling = glm::mat4(1.0);
-//			midNode->axisID = node->axisID;
-//			midNode->branchID = (node->branchID) + 1;
-//
-//			incrementBranchIDsOnAxis(child, node->axisID);
-//			// child set to identity
-//			child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-//			child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(midPos - childPos)));
-//			child->localRotation = glm::mat4(1.f);
-//			child->rotationAngle = 0;
-//			child->animationDirection = 0;
-//			child->animationAngle = 0.f;
-//			child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-//			child->animationScaling = 1;
-//			child->animateScaling = glm::mat4(1.0);
-//			child->expansion = glm::mat4(1.f);
-//			child->expansionAmount = 1.f;
-//			child->growth = glm::mat4(1.f);
-//			child->growthAmount = 1.f;
-//			if (bidirectionalGrowth) {
-//				child->S = positionalInformationFunctionSigmoid(child->positionOnBranch);
-//				//child->expansionFactor = positionalInformationFunctionSigmoid(child->positionOnBranch);
-//				//child->expansionFactor *= 0.5f;
-//			}
-//
-//			// distinguish as new branch
-//			node->midBranch = true;
-//			midNode->midBranch = true;
-//			child->midBranch = true;
-//
-//			midNode->addChild(child);
-//			midNode->parent = node;
-//
-//			// replace child with midNode in node->children
-//			auto it = std::find(node->children.begin(), node->children.end(), child);
-//			*it = midNode;
-//			divided = true;
-//			return true; // stop immediately
-//		}
-//
-//		// no violation here, recurse deeper
-//		if (divideBranch(child, threshold, division, bidirectionalGrowth))
-//			divided = true;
-//			return true; // propagate the early exit up
-//	}
-//	divided = false;
-//	return false;
-//}
+	SceneNode* midNode = subdivideEdge(node, child, splitPos, bidirectionalGrowth, rates);
 
-//// find the branch that was divided
-//void getBranchSegmentsFromBinding(
-//	SceneNode* current,
-//	SceneNode* targetChild,
-//	std::vector<std::pair<SceneNode*, SceneNode*>>& segments,
-//	bool& found
-//) {
-//	if (!current || found) return;
-//
-//	if (current == targetChild) {
-//		found = true;
-//		return;
-//	}
-//
-//	// recursively find the divided branch from the parent
-//	for (SceneNode* child : current->children) {
-//		segments.push_back({ current, child });
-//		getBranchSegmentsFromBinding(child, targetChild, segments, found);
-//		if (found) return;
-//		// if child path didn't reach targetChild, backtrack
-//		segments.pop_back();
-//	}
-//}
-//
-//std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3, bool> findClosestPointBranch(std::vector<std::pair<SceneNode*, SceneNode*>>& segments, ContourBinding* contour, bool& found) {
-//	SceneNode* p;
-//	SceneNode* c;
-//	float finalT;
-//	float finalBlending;
-//
-//	// only rebind if the point's branch has been divided
-//	if (contour->childNode->midBranch && contour->parentNode->midBranch) {
-//		// find the divided segments
-//		getBranchSegmentsFromBinding(contour->parentNode, contour->childNode, segments, found);
-//		//std::cout << segments.size() << std::endl;
-//		// special case, needed for floating point error
-//		if (contour->t == 0) {
-//			for (const auto& [parent, child] : segments) {
-//				if (parent == contour->parentNode) {
-//					p = parent;
-//					c = child;
-//					finalT = contour->t;
-//					finalBlending = contour->blending;
-//				}
-//			}
-//		}
-//		else if (contour->t == 1) {
-//			for (const auto& [parent, child] : segments) {
-//				if (child == contour->childNode) {
-//					p = parent;
-//					c = child;
-//					finalT = contour->t;
-//					finalBlending = contour->blending;
-//				}
-//			}
-//		}
-//		else {
-//			float bestDistSq = FLT_MAX;
-//
-//			for (const auto& [parent, child] : segments) {
-//				glm::vec3 p1 = glm::vec3(parent->globalTransformation[3]);
-//				glm::vec3 p2 = glm::vec3(child->globalTransformation[3]);
-//
-//				// raw t, then clamp to the actual segment range
-//				float tRaw = calculateT(p1, p2, contour->closestPoint);
-//				float tClamped = glm::clamp(tRaw, 0.0f, 1.0f);
-//
-//				// closest point ON the segment (not on the infinite line)
-//				glm::vec3 projected = p1 + tClamped * (p2 - p1);
-//				float distSq = glm::dot(contour->closestPoint - projected,
-//					contour->closestPoint - projected);
-//
-//				if (distSq < bestDistSq) {
-//					bestDistSq = distSq;
-//					p = parent;
-//					c = child;
-//					finalT = tClamped;
-//					finalBlending = glm::clamp(
-//						calculateBlending(p1, p2, contour->closestPoint), 0.0f, 1.0f);
-//				}
-//			}
-//		}
-//	}
-//	// otherwise, keep it the same
-//	else {
-//		p = contour->parentNode;
-//		c = contour->childNode;
-//		finalT = contour->t;
-//		finalBlending = contour->blending;
-//	}
-//
-//	return std::make_tuple(p, c, finalT, finalBlending, contour->closestPoint, found);
-//}
+	auto& childList = node->children;
+	auto it = std::find(childList.begin(), childList.end(), child);
+	if (it != childList.end()) *it = midNode;
+	else childList.push_back(midNode);
 
-//void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<std::pair<SceneNode*, SceneNode*>>& segments, int& i, std::vector<ContourBinding>& bindings) {
-//	i = 0;
-//	for (ContourBinding& binding : bindings) {
-//		// get the current closest point, find which branch to bind to
-//		bool found = false;
-//		std::tuple<SceneNode*, SceneNode*, float, float, glm::vec3, bool> branch = findClosestPointBranch(segments, &binding, found);
-//		// guarantee t > 0 
-//		if (std::get<2>(branch) == 0 && std::get<0>(branch)->parent != NULL) { // or could do binding.t != 0 instead of checking the parent 
-//			binding.parentNode = std::get<0>(branch)->parent;
-//			binding.childNode = std::get<0>(branch);
-//			binding.blending = 1;
-//			binding.t = 1;
-//			binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
-//			binding.closestPoint = calculateClosestPoint(binding);
-//			//continue;
-//		}
-//		// only rebind for points that are bound to subdivided branch
-//		else if (std::get<5>(branch)) {
-//			binding.parentNode = std::get<0>(branch);
-//			binding.childNode = std::get<1>(branch);
-//			binding.t = std::get<2>(branch);
-//			binding.blending = std::get<3>(branch);
-//			binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
-//			binding.closestPoint = calculateClosestPoint(binding);
-//		}
-//		// also need to adjust the parent binding of the points that are children to subdivided branch (only the parentNode's animateMatrix change)
-//		// parent binding is the subdivided branch
-//		else if (binding.parentNode->midBranch && !binding.childNode->midBranch) {
-//			binding.parentNode = binding.childNode->parent;
-//			binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
-//			binding.closestPoint = calculateClosestPoint(binding);
-//		}
-//		i++;
-//		segments.clear();
-//	}
-//}
-
-void findNodeToDynamicallyAddBranch(DivideBranchResult& result) {
-	for (const DivisionResult& dr : result.results) {
-		if (dr.midNode->addBranch) {
-
-		}
-	}
+	node->divided = true;
+	return { true, true, { { node, midNode, child } } };
 }
+
 void recalculatePrevFrameInverseBlend(std::vector<ContourBinding>& bindings) {
 	std::vector<glm::mat4> transformations;
 	for (int i = 0; i < bindings.size(); i++)
 	{
 		transformations.push_back(calculateAnimationMatrix(bindings[i]));
 	}
-	//for (int i = 0; i < bindings.size(); i++) {
-	//	if (bindings[i].blend) {
-	//		bindings[i].prevAnimationInverseToBlend.clear();
-	//		for (int j = bindings[i].blendRegionBegining; j <= bindings[i].blendRegionEnd; j++)
-	//		{
-	//			glm::mat4 newTransform = transformations[j];
-	//			bindings[i].prevAnimationInverseToBlend.push_back(glm::inverse(newTransform));
-	//		}
-	//	}
-	//}
 	for (int i = 0; i < bindings.size(); i++) {
 		if (bindings[i].blend) {
 			bindings[i].previousAnimateInverse = glm::inverse(transformations[i]);
@@ -830,7 +615,7 @@ void recalculatePrevFrameInverseBlend(std::vector<ContourBinding>& bindings) {
 	}
 }
 
-void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings) {
+void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, bool& petiole, std::vector<DivisionResult>& divisionResults, int& i, std::vector<ContourBinding>& bindings) {
 	i = 0;
 	for (ContourBinding& binding : bindings) {
 		bool found = false;
@@ -839,7 +624,7 @@ void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<Divis
 			if (binding.parentNode == result.node && binding.childNode == result.child) {
 				found = true;
 				matchedResult = &result;
-				//break;
+				break;
 			}
 		}
 		if (found) {
@@ -847,25 +632,30 @@ void SceneNode::rebindContourWithBrokenBranch(SceneNode* node, std::vector<Divis
 			double length2 = glm::length(glm::vec3(matchedResult->midNode->globalTransformation[3] - binding.parentNode->globalTransformation[3]));
 			double percentage = length2 / length1;    // this is wrong -> floating point error
 			if (binding.t < percentage) {
+				binding.parentNode = matchedResult->node;
 				binding.childNode = matchedResult->midNode;
 				binding.t = binding.t/percentage;
 				binding.blending = binding.t;
 				binding.closestPoint = calculateClosestPoint(binding);
 				binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
+				if (petiole) binding.petioleRegion = binding.childNode->axisID;  // petiole region
 			}
 			else if (binding.t > percentage) {
 				binding.parentNode = matchedResult->midNode;
+				binding.childNode = matchedResult->child;
 				binding.t = (binding.t-percentage)/(1.0-percentage);
 				binding.blending = binding.t;
 				binding.closestPoint = calculateClosestPoint(binding);
 				binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
 			}
 			else { // point bound exactly at split point
+				binding.parentNode = matchedResult->node;
 				binding.childNode = matchedResult->midNode;
 				binding.t = 1.f;
 				binding.blending = binding.t;
 				binding.closestPoint = calculateClosestPoint(binding);
 				binding.previousAnimateInverse = glm::inverse(calculateAnimationMatrix(binding));
+				if (petiole) binding.petioleRegion = binding.childNode->axisID;  // petiole region
 			}
 		}
 		else {
@@ -1026,11 +816,39 @@ void SceneNode::rebindContourWithMergedBranch(SceneNode* node, std::vector<Conto
 	}
 }
 
+// Finds the binding whose contourPoint is closest to the mirror image of `point`
+// about the y-axis. mirrorZ=false mirrors only x (x,y,z)->(-x,y,z);
+// mirrorZ=true mirrors x and z (x,y,z)->(-x,y,-z), a true reflection about the y-axis line.
+ContourBinding* SceneNode::findSymmetricBinding(std::vector<ContourBinding>& bindings,
+	const glm::vec3& point,
+	float maxSearchDistance,
+	bool mirrorZ)
+{
+	glm::vec3 mirrored = mirrorZ
+		? glm::vec3(-point.x, point.y, -point.z)
+		: glm::vec3(-point.x, point.y, point.z);
+
+	ContourBinding* best = nullptr;
+	float bestDist = std::numeric_limits<float>::max();
+
+	for (auto& b : bindings) {
+		float d = glm::length(b.contourPoint - mirrored);
+		if (d < bestDist) {
+			bestDist = d;
+			best = &b;
+		}
+	}
+
+	if (maxSearchDistance > 0.0f && bestDist > maxSearchDistance)
+		return nullptr; 
+
+	return best;
+}
+
 ContourBinding* SceneNode::findBranchAdditionPoints(SceneNode* root, std::vector<ContourBinding>& bindings, float distanceThreshold, float exclusionDistance)
 {
 	if (bindings.empty()) return nullptr;
 
-	// Precompute cumulative arc-length along the contour
 	std::vector<float> cumulativeDist(bindings.size(), 0.0f);
 	for (size_t k = 1; k < bindings.size(); k++) {
 		cumulativeDist[k] = cumulativeDist[k - 1] +
@@ -1040,16 +858,17 @@ ContourBinding* SceneNode::findBranchAdditionPoints(SceneNode* root, std::vector
 	ContourBinding bestBinding;
 	size_t startIdx = 0;
 	float accumulatedDistance = 0.0f;
+	glm::vec3 skipThreshold(-0.027f, 0.127f, 4.9f);
 	for (size_t i = startIdx + 1; i < bindings.size(); i++) {
 		glm::vec3 prevPoint = bindings[i - 1].contourPoint;
 		glm::vec3 currPoint = bindings[i].contourPoint;
 		accumulatedDistance += glm::length(currPoint - prevPoint);
 
-		//if (bindings[i].branchingNodeMarker != -1 || bindings[i].leafNodeMarker != -1) {
-		//	accumulatedDistance = 0.f;
-		//	startIdx = i;
-		//} else if 
 		if (accumulatedDistance > distanceThreshold) {
+			// add a branch only if it is far enough from the root
+			if (currPoint.y < skipThreshold.y) {
+				continue;
+			}
 			float minMarkedDistance = std::numeric_limits<float>::max();
 			for (int j = 0; j < bindings.size(); j++) {
 				bool isLeaf = (bindings[j].leafNodeMarker != -1);
@@ -1060,7 +879,7 @@ ContourBinding* SceneNode::findBranchAdditionPoints(SceneNode* root, std::vector
 					minMarkedDistance = std::min(minMarkedDistance, d);
 				}
 			}
-			if (minMarkedDistance > exclusionDistance) {
+			if (minMarkedDistance > exclusionDistance && bindings[i].leafNodeMarker == -1 && bindings[i].branchingNodeMarker == -1) {
 				startIdx = i;
 				accumulatedDistance = 0.0f;
 				return &bindings[i];
@@ -1183,304 +1002,50 @@ static SceneNode* findExistingNodeNear(SceneNode* current, const glm::vec3& targ
 	return nullptr;
 }
 
-DivideBranchResult SceneNode::splitAtBinding(ContourBinding* pointToBreak)
-{
-	std::vector<SceneNode*> originalChildren = pointToBreak->parentNode->children;
-	std::vector<SceneNode*> updatedChildren;
-	std::vector<DivisionResult> results;
-	bool dividedLocal;
-
+// subdivide to add new branch
+DivideBranchResult SceneNode::splitAtBinding(ContourBinding* pointToBreak) {
 	SceneNode* node = pointToBreak->parentNode;
 	SceneNode* child = pointToBreak->childNode;
 
 	if (!node || !child) {
-		dividedLocal = false;
-		return { dividedLocal, results };
-	}
-	else {
-		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
-		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
-		float distance = glm::length(childPos - parentPos);
-
-		// check whether a node already exists at (or very near) the split point
-		SceneNode* existingNode = findExistingNodeNear(this, pointToBreak->closestPoint, 1e-2f);  // works with subdivided branch
-
-		// don't create a mid node (just use the existing one)
-		if (existingNode) {
-			node->midBranch = true;
-			existingNode->midBranch = true;
-			child->midBranch = true;
-			node->trackOriginalBranch = true;
-			child->trackOriginalBranch = true;
-			pointToBreak->parentNode->trackOriginalBranch = true;
-			pointToBreak->childNode->trackOriginalBranch = true;
-			// to add new branch at existingNode
-			existingNode->addBranch = true;
-
-			dividedLocal = true;
-			results.push_back({ node, existingNode, child });
-			return { dividedLocal, results };
-		}
-
-		// else, create
-		SceneNode* midNode = new SceneNode();
-
-		// break in the closest point of the branch found in bindBestBinding (the projection of the point that minimizes totalDistance)
-		midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-		midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(pointToBreak->closestPoint - parentPos)));
-		midNode->localRotation = child->localRotation;
-		midNode->S = glm::mix(node->S, child->S, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-		midNode->expansionFactor = glm::mix(node->expansionFactor, child->expansionFactor, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-		midNode->growthFactor = glm::mix(node->growthFactor, child->growthFactor, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-		midNode->positionOnBranch = glm::mix(node->positionOnBranch, child->positionOnBranch, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-		midNode->rotationAngle = child->rotationAngle;
-		midNode->animationDirection = child->animationDirection;
-		midNode->animationAngle = child->animationAngle;
-		midNode->animateRotation = child->animateRotation;
-		midNode->animationScaling = 1;
-		midNode->animateScaling = glm::mat4(1.0);
-		midNode->axisID = child->axisID;
-		midNode->branchID = node->branchID + 1;
-		incrementBranchIDsOnAxis(child, node->axisID);
-
-		// child set to identity
-		child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-		child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(childPos - pointToBreak->closestPoint)));
-		child->localRotation = glm::mat4(1.f);
-		child->rotationAngle = 0;
-		child->animationDirection = 0;
-		child->animationAngle = 0.f;
-		child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-		child->animationScaling = 1;
-		child->animateScaling = glm::mat4(1.0);
-		child->expansion = glm::mat4(1.f);
-		child->expansionAmount = 1.f;
-		child->growth = glm::mat4(1.f);
-		child->growthAmount = 1.f;
-
-		midNode->addChild(child);
-		midNode->parent = node;
-
-		// distinguish as new branch
-		node->midBranch = true;
-		midNode->midBranch = true;
-		child->midBranch = true;
-
-		node->trackOriginalBranch = true;
-		child->trackOriginalBranch = true;
-		pointToBreak->parentNode->trackOriginalBranch = true;
-		pointToBreak->childNode->trackOriginalBranch = true;
-
-		// to add new branch at midNode
-		midNode->addBranch = true;
-
-		// update child list for parent node to have the new split point (instead of the original child)
-		for (SceneNode* c : originalChildren) {
-			if (c == child) {
-				updatedChildren.push_back(midNode);
-			}
-			else {
-				updatedChildren.push_back(c);
-			}
-		}
-		node->children = updatedChildren;
-
-		dividedLocal = true;
-		divided = dividedLocal;
-		results.push_back({ node, midNode, child });
-		return { dividedLocal, results };
-	}
-}
-
-// non-recursive divideBranchMinDistance
-//bool SceneNode::splitAtBinding(ContourBinding* pointToBreak)
-//{
-//	std::vector<SceneNode*> originalChildren = pointToBreak->parentNode->children;
-//	std::vector<SceneNode*> updatedChildren;
-//
-//	SceneNode* node = pointToBreak->parentNode;
-//	SceneNode* child = pointToBreak->childNode;
-//
-//	if (!node || !child) {
-//		divided = false;
-//		return divided;
-//	}
-//	else {
-//		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
-//		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
-//		float distance = glm::length(childPos - parentPos);
-//
-//		// check whether a node already exists at (or very near) the split point
-//		SceneNode* existingNode = findExistingNodeNear(this, pointToBreak->closestPoint, 1e-2f);
-//
-//		// don't create a mid node (just use the existing one)
-//		if (existingNode) {
-//			node->midBranch = true;
-//			existingNode->midBranch = true;
-//			child->midBranch = true;
-//			node->trackOriginalBranch = true;   
-//			child->trackOriginalBranch = true;  
-//			pointToBreak->parentNode->trackOriginalBranch = true;
-//			pointToBreak->childNode->trackOriginalBranch = true;
-//			// to add new branch at existingNode
-//			existingNode->addBranch = true;
-//
-//			divided = true;
-//			return divided;
-//		}
-//
-//		SceneNode* midNode = new SceneNode();
-//
-//		// break in the closest point of the branch found in bindBestBinding (the projection of the point that minimizes totalDistance)
-//		midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-//		midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(pointToBreak->closestPoint - parentPos)));
-//		midNode->localRotation = child->localRotation;
-//		midNode->S = glm::mix(node->S, child->S, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-//		//midNode->S = child->S;
-//		midNode->expansionFactor = glm::mix(node->expansionFactor, child->expansionFactor, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-//		midNode->growthFactor = glm::mix(node->growthFactor, child->growthFactor, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-//		midNode->positionOnBranch = glm::mix(node->positionOnBranch, child->positionOnBranch, (glm::length(pointToBreak->closestPoint - parentPos) / distance));
-//		midNode->rotationAngle = child->rotationAngle;
-//		midNode->animationDirection = child->animationDirection;
-//		midNode->animationAngle = child->animationAngle;
-//		midNode->animateRotation = child->animateRotation;
-//		midNode->animationScaling = 1;
-//		midNode->animateScaling = glm::mat4(1.0);
-//		midNode->axisID = child->axisID;
-//		midNode->branchID = node->branchID + 1;
-//		incrementBranchIDsOnAxis(child, node->axisID);
-//		// this function is simply for dividng to add branch; no need to consider different growth gradient
-//
-//		// child set to identity
-//		child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-//		child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(childPos - pointToBreak->closestPoint)));
-//		child->localRotation = glm::mat4(1.f);
-//		child->rotationAngle = 0;
-//		child->animationDirection = 0;
-//		child->animationAngle = 0.f;
-//		child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-//		child->animationScaling = 1;
-//		child->animateScaling = glm::mat4(1.0);
-//		//child->positionOnBranch = positionalInformaionFunction(child->positionOnBranch);
-//		//child->expansion = glm::mat4(1.f);
-//		//child->growth = glm::mat4(1.f);
-//
-//		midNode->addChild(child);
-//		midNode->parent = node;
-//		//updatedChildren.push_back(midNode);
-//
-//		// distinguish as new branch
-//		node->midBranch = true;
-//		midNode->midBranch = true;
-//		child->midBranch = true;
-//
-//		node->trackOriginalBranch = true;   // parent of new node
-//		child->trackOriginalBranch = true;   // child of new node
-//		// to rebind all contour points that are binded to these branches; need to exclusively include the contour's original branch because the new branch might be added to a different branch
-//		// so if we don't include the contour's original binded branch, the order of rebinding might get messed up
-//		pointToBreak->parentNode->trackOriginalBranch = true;
-//		pointToBreak->childNode->trackOriginalBranch = true;
-//
-//		// to add new branch at midNode
-//		midNode->addBranch = true;
-//
-//		// update child list for parent node to have the new split point (instead of the original child)
-//		for (SceneNode* c : originalChildren) {
-//			if (c == child) {
-//				updatedChildren.push_back(midNode);
-//			}
-//			else {
-//				updatedChildren.push_back(c);
-//			}
-//		}
-//		node->children = updatedChildren;
-//
-//		divided = true;
-//		return divided;
-//	}
-//}
-
-// recursive 
-bool SceneNode::divideBranchMinDistance(SceneNode* node, ContourBinding* contour) {
-	// recurse on original children
-	std::vector<SceneNode*> originalChildren = node->children;
-	std::vector<SceneNode*> updatedChildren;
-
-	divided = false;
-
-	// find the point to break (and the corresponding branch)
-	ContourBinding pointToBreak = findBestBinding(node, contour->contourPoint);
-
-	for (SceneNode* child : originalChildren) {
-		glm::vec3 parentPos = glm::vec3(node->globalTransformation[3]);
-		glm::vec3 childPos = glm::vec3(child->globalTransformation[3]);
-		float distance = glm::length(childPos - parentPos);
-
-		// find the branch that the contour is binded to
-		if (node->globalTransformation[3] == pointToBreak.parentNode->globalTransformation[3] && child->globalTransformation[3] == pointToBreak.childNode->globalTransformation[3]) {
-			divided = true;
-
-			SceneNode* midNode = new SceneNode();
-
-			// break in the closest point of the branch found in bindBestBinding (the projection of the point that minimizes totalDistance)
-			midNode->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-			midNode->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(pointToBreak.closestPoint - parentPos)));
-			midNode->localRotation = child->localRotation;
-			midNode->S = glm::mix(child->parent->S, child->S, (glm::length(pointToBreak.closestPoint - parentPos) / distance));
-			midNode->expansionFactor = glm::mix(child->parent->expansionFactor, child->expansionFactor, (glm::length(pointToBreak.closestPoint - parentPos) / distance));
-			midNode->growthFactor = glm::mix(child->parent->growthFactor, child->growthFactor, (glm::length(pointToBreak.closestPoint - parentPos) / distance));
-			midNode->positionOnBranch = glm::mix(child->parent->positionOnBranch, child->positionOnBranch, (glm::length(pointToBreak.closestPoint - parentPos) / distance));
-			midNode->rotationAngle = child->rotationAngle;
-			midNode->animationDirection = child->animationDirection;
-			midNode->animationAngle = child->animationAngle;
-			midNode->animateRotation = child->animateRotation;
-			midNode->animationScaling = 1;
-			midNode->animateScaling = glm::mat4(1.0);
-			// this function is simply for dividng to add branch; no need to consider different growth gradient
-
-			// child set to identity
-			child->localTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.f, 1.f, 0.f));
-			child->localScaling = glm::scale(glm::mat4(1.0f), glm::vec3(glm::length(childPos - pointToBreak.closestPoint)));
-			child->localRotation = glm::mat4(1.f);
-			child->rotationAngle = 0;
-			child->animationDirection = 0;
-			child->animationAngle = 0.f;
-			child->animateRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-			child->animationScaling = 1;
-			child->animateScaling = glm::mat4(1.0);
-			//child->positionOnBranch = positionalInformaionFunction(child->positionOnBranch);
-			//child->expansion = glm::mat4(1.f);
-			//child->growth = glm::mat4(1.f);
-
-			midNode->addChild(child);
-			midNode->parent = node;
-			updatedChildren.push_back(midNode);
-			// distinguish as new branch
-			node->midBranch = true;
-			midNode->midBranch = true;
-			child->midBranch = true;
-
-			node->trackOriginalBranch = true;   // parent of new node
-			child->trackOriginalBranch = true;   // child of new node
-			// to rebind all contour points that are binded to these branches; need to exclusively include the contour's original branch because the new branch might be added to a different branch
-			// so if we don't include the contour's original binded branch, the order of rebinding might get messed up
-			contour->parentNode->trackOriginalBranch = true;
-			contour->childNode->trackOriginalBranch = true;
-
-			// to add new branch at midNode
-			midNode->addBranch = true;
-		}
-		else {
-			updatedChildren.push_back(child);
-		}
+		return { false, {} };
 	}
 
-	node->children = updatedChildren;
+	std::vector<DivisionResult> results;
 
-	for (SceneNode* child : originalChildren) {
-		divided = divided || divideBranchMinDistance(child, contour);
-	}
-	return divided;
+	// if a node already exists at/near the split point, reuse it instead of creating one
+	//SceneNode* existingNode = findExistingNodeNear(this, pointToBreak->closestPoint, 1e-2f);
+	//if (existingNode) {
+	//	node->midBranch = true;
+	//	existingNode->midBranch = true;
+	//	child->midBranch = true;
+	//	node->trackOriginalBranch = true;
+	//	child->trackOriginalBranch = true;
+	//	pointToBreak->parentNode->trackOriginalBranch = true;
+	//	pointToBreak->childNode->trackOriginalBranch = true;
+	//	existingNode->addBranch = true;
+
+	//	results.push_back({ node, existingNode, child });
+	//	return { true, false, results };
+	//}
+
+	SceneNode* midNode = subdivideEdge(node, child, pointToBreak->closestPoint,
+		/*bidirectionalGrowth=*/false, 0);
+
+	node->trackOriginalBranch = true;
+	child->trackOriginalBranch = true;
+	pointToBreak->parentNode->trackOriginalBranch = true;
+	pointToBreak->childNode->trackOriginalBranch = true;
+	midNode->addBranch = true;
+
+	auto& childList = node->children;
+	auto it = std::find(childList.begin(), childList.end(), child);
+	if (it != childList.end()) *it = midNode;
+	else childList.push_back(midNode);
+
+	divided = true;
+	results.push_back({ node, midNode, child });
+	return { true, false, results };
 }
 
 glm::quat SceneNode::accumulateRotationToRoot(SceneNode* node) {
@@ -1515,26 +1080,27 @@ SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour, int
 		rotationMatrix[1][1] = normalizedDirection[1];
 		// need to accumulate all the parents' rotatation matrix until root and take the inverse to apply rotation in local coordinate
 		newNode->localRotation = rotationMatrix * glm::toMat4(glm::inverse(accumulateRotationToRoot(node)));
-		// might make more sense to set these values to the tip of the main axis values (like 1 or 2, not a multiple of its parent)
-		// because the value will be small with subdivision
-		newNode->S = newBranchS;   // controls how fast or slow this new node will grow, needs to be extremely big for the new branch to grow fast enough cuz node->S is too small
-		newNode->expansionFactor = newBranchExpansionFactor;
-		newNode->growthFactor = newBranchGrowthFactor;
 		newNode->positionOnBranch = 1.f;
 		newNode->animationDirection = 1.f;
 		// for S and growthFactor, since newNode's parameter is inherited from node's (which is way less than 1), in order for newNode to grow fast enough, it has to be multiplied by at least 10 (to make it bigger than 1)
 		// also has to do with the fact that the newly added branch is way shorter compared to the main axis
 		newNode->axisID = maxID + 1;
 		newNode->branchID = 0;
+		newNode->level = node->level + 1;
+		newNode->rebindContourDistance = node->rebindContourDistance / (float)newNode->level;
+		// might make more sense to set these values to the tip of the main axis values (like 1 or 2, not a multiple of its parent)
+		// because the value will be small with subdivision
+		if (contour->contourPoint.y >= 1.5f) {
+			newNode->S = (newBranchS * newNode->level) / contour->contourPoint.y;   // controls how fast or slow this new node will grow, needs to be extremely big for the new branch to grow fast enough cuz node->S is too small
+			newNode->expansionFactor = (newBranchExpansionFactor * newNode->level) / 1.5f;
+			newNode->growthFactor = (newBranchGrowthFactor * newNode->level);
+		}
+		else {
+			newNode->S = (newBranchS * newNode->level);   // controls how fast or slow this new node will grow, needs to be extremely big for the new branch to grow fast enough cuz node->S is too small
+			newNode->expansionFactor = (newBranchExpansionFactor * newNode->level);
+			newNode->growthFactor = (newBranchGrowthFactor * newNode->level);
+		}
 
-		//if (newNode->axisID > 1) {
-		//	newNode->S = 0.f;   // controls how fast or slow this new node will grow, needs to be extremely big for the new branch to grow fast enough cuz node->S is too small
-		//	newNode->expansionFactor = 3.f;
-		//	newNode->growthFactor = 0.f;
-		//}
-
-		//newNode->animationAngle = 30.f;
-		
 		// Connect to tree
 		newNode->parent = node;
 		node->addChild(newNode);
@@ -1554,7 +1120,9 @@ SceneNode* SceneNode::addNewBranch(SceneNode* node, ContourBinding* contour, int
 }
 
 // finds neighboring contour bindings around a given binding c
-std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode, SceneNode* root) {
+std::vector<ContourBinding*> SceneNode::getNearbyBindings(ContourBinding* c, std::vector<ContourBinding>& bindings, SceneNode* newNode) {
+	//float rebindContourDistance = glm::clamp(0.1f / (float)newNode->level, minRebindContourDistance, maxRebindContourDistance);
+	float rebindContourDistance = newNode->rebindContourDistance;
 	int limit = 3;
 	int leftCounter = 0;
 	int rightCounter = 0;
@@ -1700,7 +1268,7 @@ void SceneNode::addContourOverride(std::vector<ContourBinding>& bindings, SceneN
 
 // rebind all the contour points that were bound to the broken branch to the new branch
 void SceneNode::rebindToNewBranch(SceneNode* newNode, SceneNode* root, ContourBinding* contour, std::vector<ContourBinding>& bindings) {
-	std::vector<ContourBinding*> toRebind = getNearbyBindings(contour, bindings, newNode, root);
+	std::vector<ContourBinding*> toRebind = getNearbyBindings(contour, bindings, newNode);
 	// find the exact point to bind to the new branch
 	int index = -1;
 
@@ -1935,7 +1503,7 @@ void SceneNode::calculateRebindingGlobal(std::vector<ContourBinding*>& bindings)
 			// observation: due to how we bind contour to branch, unless we are starting at the root, we always use the childnode (think about how the branching node marker is bound)
 			if (start == 0) startNode = bindings[start]->parentNode;  // cannot use i instead of start because we skip the outer loop for i = 0
 			else startNode = bindings[start]->childNode;
-			// similar to startNode, for the root node, we use parent node. child node otherwise
+			// similar to startNode, for the root node, we use parent node; child node otherwise
 			if (i == bindings.size() - 1) endNode = bindings[i]->parentNode;
 			else endNode = bindings[i]->childNode;
 
@@ -1956,9 +1524,12 @@ void SceneNode::calculateRebindingGlobal(std::vector<ContourBinding*>& bindings)
 				if (j == start || j == i) continue; // keep first and last point to root
 				bindings[j]->parentNode = startNode;
 				bindings[j]->childNode = endNode;
-				bindings[j]->t = 1.0 - ((float)i - (float)j) / ((float)i - (float)start);
+				float t;
+				if (perpendicularBinding) t = calculateT(startNode->globalTransformation[3], endNode->globalTransformation[3], bindings[j]->contourPoint);
+				else t = 1.0 - ((float)i - (float)j) / ((float)i - (float)start);
+				bindings[j]->t = glm::clamp(t, 0.0f, 1.0f);
 				//std::cout << i << ", " << j << ", " << start << std::endl;
-				bindings[j]->blending = 1.0 - ((float)i - (float)j) / ((float)i - (float)start);
+				bindings[j]->blending = bindings[j]->t;
 				bindings[j]->closestPoint = calculateClosestPoint(*bindings[j]);
 				// find the subdivided segment on the branch 
 				auto segment = findSubdividedSegment(bindings[j]->closestPoint, hierarchyParent, hierarchyChild);
@@ -1967,8 +1538,11 @@ void SceneNode::calculateRebindingGlobal(std::vector<ContourBinding*>& bindings)
 					bindings[j]->childNode = segment.second;
 					float distance = glm::length(segment.second->globalTransformation[3] - segment.first->globalTransformation[3]);
 					float bindingDistance = glm::length(bindings[j]->closestPoint - glm::vec3(segment.first->globalTransformation[3]));
-					bindings[j]->t = glm::clamp(bindingDistance / distance, 0.f, 1.f);
-					bindings[j]->blending = glm::clamp(bindingDistance / distance, 0.f, 1.f);
+					float t;
+					if (perpendicularBinding) t = bindingDistance / distance;
+					else t = calculateT(segment.first->globalTransformation[3], segment.second->globalTransformation[3], bindings[j]->contourPoint);
+					bindings[j]->t = glm::clamp(t, 0.f, 1.f);
+					bindings[j]->blending = bindings[j]->t;
 				}
 				bindings[j]->previousAnimateInverse = glm::inverse(calculateAnimationMatrix(*bindings[j]));
 			}
@@ -1998,8 +1572,8 @@ std::vector<glm::vec3> SceneNode::generateInitialContourControlPoints(SceneNode*
 	// root
 	glm::vec3 rootPos = glm::vec3(root->globalTransformation[3]);
 
-	glm::vec3 leftOffset = rootPos - glm::vec3(0.1f, 0.25f, 0.0f);
-	glm::vec3 rightOffset = rootPos + glm::vec3(0.1f, -0.25f, 0.0f);
+	glm::vec3 leftOffset = rootPos - glm::vec3(0.025f, 0.25f, 0.0f);
+	glm::vec3 rightOffset = rootPos + glm::vec3(0.025f, -0.25f, 0.0f);
 
 	controlPoints.push_back(leftOffset);
 
@@ -2065,19 +1639,6 @@ std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>
 			segmentPoints.push_back(pt);
 			segment = { std::get<0>(branches[branchIndex]), std::get<1>(branches[branchIndex]) };
 
-			//if (j == pointsPerSegment / 2) {
-			//	float minDist = FLT_MAX;
-			//	for (auto& [parent, child, index] : branches) {
-			//		glm::vec3 P = parent->globalTransformation[3];
-			//		glm::vec3 Q = child->globalTransformation[3];
-			//		glm::vec3 closest = intersectionPoint(P, Q, pt);
-			//		float dist = glm::length(closest - pt);
-			//		if (dist < minDist) {
-			//			minDist = dist;
-			//			segment = { parent, child };
-			//		}
-			//	}
-			//}
 		}
 		groupedContourPoints.push_back({ segmentPoints, segment });  // generated segment gets linked to associated branch
 		branchCounter++;
@@ -2192,7 +1753,7 @@ std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>
 	return groupedContourPoints;
 }
 
-// guarantees even interpolation along the branch for the contour points (key in interpolative skinning)
+// even interpolation along the branch for binding
 std::vector<ContourBinding> SceneNode::bindInterpolatedContourToBranches(std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints) {
 	std::vector<ContourBinding> bindings;
 	float t = 0;
@@ -2209,16 +1770,14 @@ std::vector<ContourBinding> SceneNode::bindInterpolatedContourToBranches(std::ve
 
 			// closest point
 			if (i % 2 == 1) t = 1 - (j / ((float)contourPoints[i].first.size()));
-			else t = (j / ((float)contourPoints[i].first.size()));   // t is number of points based
+			else t = (j / ((float)contourPoints[i].first.size()));  
 			if (contourPoints[i].first.size() == 1) t = 0;
-			//t=fminf(fmaxf((contourPoints[i].first[j].y- P.y)/(Q.y-P.y),0.0),1.0);
 			glm::vec3 closestPoint = calculateClosestPointForNewPoint(t, child);
 
 			// blending transformation
 			if (i % 2 == 1) blending = 1 - (j / ((float)contourPoints[i].first.size()));
 			else blending = (j / ((float)contourPoints[i].first.size()));
 			if (contourPoints[i].first.size() == 1) blending = 0;
-			//blending=fminf(fmaxf((contourPoints[i].first[j].y- P.y)/(Q.y-P.y),0.0),1.0);
 			glm::mat4 previousAnimateInverse = glm::inverse(calculateAnimationMatrixForNewPoint(blending, child));
 
 			glm::vec3 bindingdirection = (contourPoints[i].first[j] - closestPoint) / 2.f;
@@ -2235,36 +1794,38 @@ std::vector<ContourBinding> SceneNode::bindInterpolatedContourToBranches(std::ve
 	return bindings;
 }
 
-// just directly binding to closestPoint -> not used
-std::vector<ContourBinding> SceneNode::bindContourToBranches(const std::vector<glm::vec3>& contourPoints, SceneNode* root, std::vector<std::pair<SceneNode*, SceneNode*>>& segments) {
+// perpendicular binding
+std::vector<ContourBinding> SceneNode::bindContourToBranches(
+	std::vector<std::pair<std::vector<glm::vec3>, std::pair<SceneNode*, SceneNode*>>>& contourPoints) {
+
 	std::vector<ContourBinding> bindings;
-	glm::vec3 rootPos = root->globalTransformation[3];
 
-	for (const glm::vec3& contourPoint : contourPoints) {
-		float minDist = FLT_MAX;
-		ContourBinding bestBinding;
+	for (size_t i = 0; i < contourPoints.size(); i++) {
+		SceneNode* parent = contourPoints[i].second.first;
+		SceneNode* child = contourPoints[i].second.second;
+		glm::vec3 P = parent->globalTransformation[3];
+		glm::vec3 Q = child->globalTransformation[3];
 
-		glm::vec3 rootToContour = glm::normalize(contourPoint - rootPos);
-		for (auto& [parent, child] : segments) {
-			glm::vec3 P = parent->globalTransformation[3];
-			glm::vec3 Q = child->globalTransformation[3];
+		for (size_t j = 0; j < contourPoints[i].first.size(); j++) {
+			glm::vec3& contourPoint = contourPoints[i].first[j];
 
 			glm::vec3 closest = intersectionPoint(P, Q, contourPoint);
-			float t = glm::dot(Q - P, contourPoint - P) / glm::dot(Q - P, Q - P);  // t is simply the projection of contour point on the branch
+			float t = glm::dot(Q - P, contourPoint - P) / glm::dot(Q - P, Q - P);
 			t = glm::clamp(t, 0.0f, 1.0f);
-			float dist = glm::length(closest - contourPoint);
+			int leafNodeMarker = -1;
+			if (t == 1) leafNodeMarker = child->axisID;
+			ContourBinding binding = {
+				parent, child, contourPoint, t, closest,
+				glm::inverse(calculateAnimationMatrixForNewPoint(t, child)),
+				false, t, contourKey, -1, leafNodeMarker, child->axisID
+			};
+			contourKey += 1;
 
-			if (dist < minDist) {
-				minDist = dist;
-				bestBinding = { parent, child, contourPoint, t, closest, glm::inverse(calculateAnimationMatrixForNewPoint(t, child)), false, t, contourKey };
-				contourKey += 1;
-
-			}
+			bindings.push_back(binding);
 		}
-
-		bindings.push_back(bestBinding);
 	}
-
+	bindings[0].leafNodeMarker = 0;
+	bindings[bindings.size() - 1].leafNodeMarker = 0;
 	return bindings;
 }
 
@@ -2425,7 +1986,6 @@ SceneNode* getDeeperNode(SceneNode* a, SceneNode* b) {
 }
 
 // add contour points and bind if distance between two contour points exceed a threshold
-// --- Shared helper: does the work every branch was duplicating ---
 void SceneNode::pushInterpolatedContourBinding(std::vector<ContourBinding>& out, const ContourBinding& source, const glm::vec3& newPoint,
 	float t, float blending, bool newBranchBindingValue, const ContourBinding& a, const ContourBinding& b)
 {
@@ -2592,47 +2152,47 @@ void SceneNode::calculateNormalDirection(std::vector<ContourBinding>& bindings) 
 }
 
 // animate contour points for growth 
-//void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime, int nodes) {
-//	// first, calculate the delta transformation matrices for all points, store in an array
-//	// then blend the matrices
-//	// then apply
-//
-//	// petiole: limit the growth for the first and last few points
-//	for (int i = 0; i < bindings.size(); i++) {
-//		//if (i == 0 || i == bindings.size() - 1) continue;
-//		glm::mat4 animatedPosMat;
-//		animatedPosMat = calculateAnimationMatrix(bindings[i]);
-//		//glm::vec3 bindingPosition = bindings[i].closestPoint;   // translating by -bindingPosition moves it back to local space
-//		
-//		bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
-//
-//		//// growth (translation) in the normal direction
-//		//if (true) {
-//		//	bindings[i].contourPoint.x += deltaTime * bindings[i].normalFactor * bindings[i].normalDirection.x;
-//		//	bindings[i].contourPoint.y += deltaTime * bindings[i].normalFactor * bindings[i].normalDirection.y;
-//		//}
-//
-//		// transformation applied in local coordinate frame
-//		bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
-//		bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
-//		//binding.closestPoint = calculateClosestPoint(binding);
-//
-//		// update t value to reflect the non-linear growth
-//		//bindings[i].t = (glm::length(bindings[i].closestPoint - glm::vec3(bindings[i].parentNode->globalTransformation[3])) / glm::length(bindings[i].childNode->globalTransformation[3] - bindings[i].parentNode->globalTransformation[3]));
-//
-//	}
-//}
+void SceneNode::animationPerFrame(std::vector<ContourBinding>& bindings, float deltaTime) {
+	// first, calculate the delta transformation matrices for all points, store in an array
+	// then blend the matrices
+	// then apply
+
+	// petiole: limit the growth for the first and last few points
+	for (int i = 0; i < bindings.size(); i++) {
+		//if (i == 0 || i == bindings.size() - 1) continue;
+		glm::mat4 animatedPosMat;
+		animatedPosMat = calculateAnimationMatrix(bindings[i]);
+		//glm::vec3 bindingPosition = bindings[i].closestPoint;   // translating by -bindingPosition moves it back to local space
+		
+		bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
+
+		//// growth (translation) in the normal direction
+		//if (true) {
+		//	bindings[i].contourPoint.x += deltaTime * bindings[i].normalFactor * bindings[i].normalDirection.x;
+		//	bindings[i].contourPoint.y += deltaTime * bindings[i].normalFactor * bindings[i].normalDirection.y;
+		//}
+
+		// transformation applied in local coordinate frame
+		bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
+		bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
+		//binding.closestPoint = calculateClosestPoint(binding);
+
+		// update t value to reflect the non-linear growth
+		//bindings[i].t = (glm::length(bindings[i].closestPoint - glm::vec3(bindings[i].parentNode->globalTransformation[3])) / glm::length(bindings[i].childNode->globalTransformation[3] - bindings[i].parentNode->globalTransformation[3]));
+
+	}
+}
 
 // distance based
-void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float distance) {
+void SceneNode::indentationControl(std::vector<ContourBinding>& bindings) {
 	if (bindings.empty()) return;
-	else if (distance == 0.0f) return;
 
 	for (auto& b : bindings)
 	{
 		b.blend = false;
 		b.blendRegionBegining = -1;
 		b.blendRegionEnd = -1;
+		b.blendingWeights.empty();
 	}
 
 	std::vector<float> cumuDist(bindings.size());
@@ -2641,19 +2201,57 @@ void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float 
 		cumuDist[i] = cumuDist[i - 1] + glm::distance(bindings[i - 1].contourPoint, bindings[i].contourPoint);
 	}
 
-	// lambda function: runs the original computation for a given index k within the window [firstIndex, lastIndex]
-	auto normalCompute = [&](int kk, int firstIndex, int lastIndex, int& begin, int& end) {
-		// measure how far k is from each side of the window
+	// default radius calculation function
+	using RadiusFn = std::function<float(int kk, int firstIndex, int lastIndex)>;
+	RadiusFn defaultRadius = [&](int kk, int firstIndex, int lastIndex) {
 		float distToStart = cumuDist[kk] - cumuDist[firstIndex];
 		float distToEnd = cumuDist[lastIndex] - cumuDist[kk];
-		float radiusDist = std::min(distToStart, distToEnd);
-		// lower_bound & upper_bound returns the iterator
-		// so by subtracting begin(), it tells you how many elements away from the beginning is this?
-		int idxLeft = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), cumuDist[kk] - radiusDist) - cumuDist.begin());
-		int idxRight = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), cumuDist[kk] + radiusDist) - cumuDist.begin()) - 1;
-		begin = std::max(0, idxLeft);
-		end = std::min(static_cast<int>(bindings.size()) - 1, idxRight);
+		return std::min(distToStart, distToEnd);
 		};
+
+	// lambda function: runs the original computation for a given index k within the window [firstIndex, lastIndex]
+	//auto normalCompute = [&](int kk, float firstPos, float lastPos, int& begin, int& end, float& beginPos, float& endPos) {
+	//	// measure how far k is from each side of the window, using exact positions
+	//	float distToStart = cumuDist[kk] - firstPos;
+	//	float distToEnd = lastPos - cumuDist[kk];
+	//	float radiusDist = std::min(distToStart, distToEnd);
+	//	// exact, unsnapped window boundary positions
+	//	beginPos = cumuDist[kk] - radiusDist;
+	//	endPos = cumuDist[kk] + radiusDist;
+	//	int idxLeft = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), beginPos) - cumuDist.begin());
+	//	int idxRight = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), endPos) - cumuDist.begin()) - 1;
+	//	begin = std::max(0, idxLeft);
+	//	end = std::min(static_cast<int>(bindings.size()) - 1, idxRight);
+	//	};
+	auto normalCompute = [&](int kk, int firstIndex, int lastIndex, int& begin, int& end,
+		float& beginPos, float& endPos, float& radiusDistOut,
+		const RadiusFn& radiusFn) {
+			float radiusDist = radiusFn(kk, firstIndex, lastIndex);
+			radiusDistOut = radiusDist;
+
+			beginPos = cumuDist[kk] - radiusDist;
+			endPos = cumuDist[kk] + radiusDist;
+
+			int idxLeft = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), beginPos) - cumuDist.begin());
+			int idxRight = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), endPos) - cumuDist.begin()) - 1;
+			begin = std::max(0, idxLeft);
+			end = std::min(static_cast<int>(bindings.size()) - 1, idxRight);
+		};
+	//auto normalCompute = [&](int kk, int firstIndex, int lastIndex, int& begin, int& end, float& beginPos, float& endPos) {
+	//	// measure how far k is from each side of the window
+	//	float distToStart = cumuDist[kk] - cumuDist[firstIndex];
+	//	float distToEnd = cumuDist[lastIndex] - cumuDist[kk];
+	//	float radiusDist = std::min(distToStart, distToEnd);
+	//	// exact, unsnapped window boundary positions
+	//	beginPos = cumuDist[kk] - radiusDist;
+	//	endPos = cumuDist[kk] + radiusDist;
+	//	// lower_bound & upper_bound returns the iterator
+	//	// so by subtracting begin(), it tells you how many elements away from the beginning is this?
+	//	int idxLeft = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), cumuDist[kk] - radiusDist) - cumuDist.begin());
+	//	int idxRight = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), cumuDist[kk] + radiusDist) - cumuDist.begin()) - 1;
+	//	begin = std::max(0, idxLeft);
+	//	end = std::min(static_cast<int>(bindings.size()) - 1, idxRight);
+	//	};
 
 	int firstIndex, lastIndex;
 	for (int i = 0; i < static_cast<int>(bindings.size()); i++) {
@@ -2670,37 +2268,97 @@ void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float 
 			}
 		}
 
+		float effectiveDistance = indentationWindow;
 		bool isBelow = false;
 		if (leafIdx != -1) {
 			isBelow = bindings[i].contourPoint.y < bindings[leafIdx].contourPoint.y; // adjust axis/component if needed
 			//std::cout << "leaf node: " << leafIdx << std::endl;
+			float distToLeaf = std::fabs(cumuDist[leafIdx] - cumuDist[i]);
+			effectiveDistance = std::min(indentationWindow, distToLeaf);
 		}
 
-		float targetStart = cumuDist[i] - distance;
-		float targetEnd = cumuDist[i] + distance;
+		float targetStart = cumuDist[i] - effectiveDistance;
+		float targetEnd = cumuDist[i] + effectiveDistance;
 		firstIndex = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), targetStart) - cumuDist.begin());
 		firstIndex = std::max(0, firstIndex);
 		lastIndex = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), targetEnd) - cumuDist.begin()) - 1;
 		lastIndex = std::min(static_cast<int>(bindings.size()) - 1, lastIndex);
-		//std::cout << "first index: " << firstIndex << std::endl;
-		//std::cout << "last index: " << lastIndex << std::endl;
 
+		float firstPos = targetStart; // exact region boundary, unsnapped
+		float lastPos = targetEnd;    
+		float prevRadiusDist = -1.0f;  
+		bool havePrevRadius = false;
+		// swap this function to change how the window size is computed
+		RadiusFn inheritIfNear = [&](int kk, int firstIndex, int lastIndex) -> float { // lambda function
+			bool nearI = std::fabs(cumuDist[kk] - cumuDist[i]) < (indentationWindow/2.5f);
+			if (nearI && havePrevRadius) {
+				return prevRadiusDist;
+			}
+			return defaultRadius(kk, firstIndex, lastIndex);
+			};
 		int windowSum = firstIndex + lastIndex;
+		float distSum = firstPos + lastPos; // windowSum but in position-space
 		for (int k = firstIndex; k <= lastIndex; k++) {
 			int begin, end;
+			float beginPos, endPos, radiusDist;
+			// fixed window size
+			//float windowStart = cumuDist[k] - distance;
+			//float windowEnd = cumuDist[k] + distance;
+			//int windowFirstIndex = static_cast<int>(std::lower_bound(cumuDist.begin(), cumuDist.end(), windowStart) - cumuDist.begin());
+			//begin = std::max(0, windowFirstIndex);
+			//int windowLastIndex = static_cast<int>(std::upper_bound(cumuDist.begin(), cumuDist.end(), windowEnd) - cumuDist.begin()) - 1;
+			//end = std::min(static_cast<int>(bindings.size()) - 1, windowLastIndex);
+			// variable window size
 			if (!isBelow) {
-				normalCompute(k, firstIndex, lastIndex, begin, end);
+				normalCompute(k, firstIndex, lastIndex, begin, end, beginPos, endPos, radiusDist, inheritIfNear);
+				//normalCompute(k, firstPos, lastPos, begin, end, beginPos, endPos);
 			}
 			else {
 				int kMirror = windowSum - k;
+				//float distSum = cumuDist[firstIndex] + cumuDist[lastIndex];
 				int mb, me;
-				normalCompute(kMirror, firstIndex, lastIndex, mb, me);
+				float mbp, mep, mRadiusDist;
+				normalCompute(kMirror, firstIndex, lastIndex, mb, me, mbp, mep, mRadiusDist, inheritIfNear);
+				//normalCompute(kMirror, firstPos, lastPos, mb, me, mbp, mep);
 				begin = windowSum - me;
 				end = windowSum - mb;
+				beginPos = distSum - mep;
+				endPos = distSum - mbp;
+				radiusDist = mRadiusDist;
 			}
+			prevRadiusDist = radiusDist;
+			havePrevRadius = true;
 			bindings[k].blend = true;
 			bindings[k].blendRegionBegining = begin;
 			bindings[k].blendRegionEnd = end;
+
+			// --- weight assignment ---
+			//float windowLength = cumuDist[end] - cumuDist[begin];
+			float windowLength = endPos - beginPos;
+			bindings[k].blendingWeights.resize(end - begin + 1);
+			for (int m = begin; m <= end; m++) {
+				// special case 1: only one point in the window
+				if (begin == end) {
+					bindings[k].blendingWeights[m - begin] = 1.0f;
+				}
+				// special case 2: first point — only half-distance to the next point counts
+				else if (m == begin) {
+					float outward = cumuDist[m] - beginPos; // exact pos to begin
+					float inward = (cumuDist[m + 1] - cumuDist[m]) / 2.0f; // begin to second point
+					bindings[k].blendingWeights[m - begin] = (outward + inward) / windowLength;
+				}
+				// special case 3: last point — only half-distance to the previous point counts
+				else if (m == end) {
+					float inward = (cumuDist[m] - cumuDist[m - 1]) / 2.0f; // end to second last point
+					float outward = endPos - cumuDist[m]; // exact pos to end
+					bindings[k].blendingWeights[m - begin] = (inward + outward) / windowLength;
+				}
+				else {
+					float distPrev = cumuDist[m] - cumuDist[m - 1];
+					float distNext = cumuDist[m + 1] - cumuDist[m];
+					bindings[k].blendingWeights[m - begin] = (distPrev / 2.0f + distNext / 2.0f) / windowLength;
+				}
+			}
 		}
 		//break;
 	}
@@ -2738,7 +2396,7 @@ void SceneNode::indentationControl(std::vector<ContourBinding>& bindings, float 
 //	recalculatePrevFrameInverseBlend(bindings);
 //}
 
-void SceneNode::animationPerFrameBinding(std::vector<ContourBinding>& bindings, float deltaTime) {
+void SceneNode::animationPerFrameBinding(std::vector<ContourBinding>& bindings) {
 	std::vector<glm::mat4> prevInverseSnapshot(bindings.size());
 	for (size_t k = 0; k < bindings.size(); k++) {
 		prevInverseSnapshot[k] = bindings[k].previousAnimateInverse;
@@ -2748,14 +2406,15 @@ void SceneNode::animationPerFrameBinding(std::vector<ContourBinding>& bindings, 
 		glm::mat4 animatedPosMat = calculateAnimationMatrix(bindings[i]);
 		if (!bindings[i].blend) {
 			bindings[i].contourPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].contourPoint, 1.0f);
-			bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
-			bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
+			//bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
+			//bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
 		}
 		else {
 			glm::vec4 animatedPoint = glm::vec4(0.f);
 			glm::vec4 closePoint = glm::vec4(0.f);
 			glm::mat4 accumulatedT = glm::mat4(0.f);
-			float weight = 1.f / (float)(bindings[i].blendRegionEnd - bindings[i].blendRegionBegining + 1);
+			float accumulatedWeight = 0.f;
+			//float weight = 1.f / (float)(bindings[i].blendRegionEnd - bindings[i].blendRegionBegining + 1);
 			int counter = 0;
 			// i = current contour point to process
 			// j = pointer to the contour point within region of blending for i
@@ -2764,17 +2423,18 @@ void SceneNode::animationPerFrameBinding(std::vector<ContourBinding>& bindings, 
 				glm::mat4 jAnimationMatrix = calculateAnimationMatrix(bindings[j]);
 				//glm::mat4 jPrevFrameAnimationMatrix = bindings[i].prevAnimationInverseToBlend[counter];
 				glm::mat4 jPrevFrameAnimationMatrix = prevInverseSnapshot[j];
-				animatedPoint += weight * jAnimationMatrix * jPrevFrameAnimationMatrix * glm::vec4(bindings[i].contourPoint, 1.0f);
-				closePoint += weight * jAnimationMatrix * jPrevFrameAnimationMatrix * glm::vec4(bindings[i].closestPoint, 1.0f);
+				//std::cout << bindings[i].blendingWeights[counter] << std::endl;
+				animatedPoint += bindings[i].blendingWeights[counter] * jAnimationMatrix * jPrevFrameAnimationMatrix * glm::vec4(bindings[i].contourPoint, 1.0f);
+				//closePoint += bindings[i].blendingWeights[counter] * jAnimationMatrix * jPrevFrameAnimationMatrix * glm::vec4(bindings[i].closestPoint, 1.0f);
 				//bindings[i].prevAnimationInverseToBlend[counter] = glm::inverse(jAnimationMatrix);
 				counter += 1;
 			}
-			counter = 0;
 			bindings[i].contourPoint = animatedPoint;
-			bindings[i].closestPoint = closePoint;
+			//bindings[i].closestPoint = closePoint;
 			//bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
 		}
-		//bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
+		// don't use blended transformation for binding position
+		bindings[i].closestPoint = animatedPosMat * bindings[i].previousAnimateInverse * glm::vec4(bindings[i].closestPoint, 1.0f);
 		//bindings[i].previousAnimateInverse = glm::inverse(animatedPosMat);
 	}
 	// update previous inverse transformation after updating all points
