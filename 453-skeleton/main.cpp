@@ -43,7 +43,7 @@ Camera* camera = new Camera(cameraStart, cameraTarget);
 
 static bool isDragging = false;
 static double lastX = 0.0, lastY = 0.0;
-static const float panSpeed = 0.005f; // tune, or see step 3 for a better version
+static const float panSpeed = 0.001f; 
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 	if (camera) {
@@ -284,24 +284,11 @@ int main(int argc, char* argv[]) {
 			sim.handleGetContourInformation(worldPos, clickedToRemove);
 			clickedToRemove = false;
 			static bool simulateClick = true;
-			//if (simulateClick)
-			//{
-			//	worldPos = glm::vec3(0.056f, 0.762f, 4.9f);
-			//	//worldPos = glm::vec3(0.056000, 0.712938, 0.000000);
-			//	clickedToAdd = true;
-			//	simulateClick = false;   // only simulate once
-			//}
 			sim.handleAddBranchClick(worldPos, clickedToAdd);
 			clickedToAdd = false;
 			sim.dynamicallyAddBranch();
-
 			sim.handleAKey();
-			/*if (sim.g_pressed) {
-				sim.animateRebuild(deltaTime);
-			}*/
 
-			// instructions for simulations
-			//sim.simulationInstructions(deltaTime);
 			sim.updateSimulation();
 			if (sim.g_pressed) {
 				sim.animateRebuild();

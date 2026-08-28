@@ -84,6 +84,7 @@ private:
 	int maxID = 0;
 	bool screenshotRequested = false;
 	bool clickedToAdd = false;
-
+	bool tipBranchAdded = false;
+	bool addTipOnce = true;
 	int counter = 0;
 };

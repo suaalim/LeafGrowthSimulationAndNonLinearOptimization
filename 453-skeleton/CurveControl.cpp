@@ -52,8 +52,6 @@ void Simulation::resetBool(SceneNode* root) {
 	root->midBranch = false;
 	root->trackOriginalBranch = false;
 	root->toMerge = false;
-	//root->divided = false;
-	//root->merged = false;
 	for (SceneNode* child : root->children) {
 		resetBool(child);
 	}
@@ -79,6 +77,9 @@ float Simulation::computeMainAxisLength(SceneNode* root) {
 	return totalLength;
 }
 
+// read parameter files and initialize everything
+// builds the initial shape (rest pose)
+// incorporate petiole for the main axis here if necessary 
 void Simulation::init(const std::string& path, bool isTxt, const std::string& newBranch, const std::string& sim, const std::string& petiole) {
 	std::string lower = path;
 	std::transform(lower.begin(), lower.end(), lower.begin(),
@@ -131,7 +132,7 @@ void Simulation::init(const std::string& path, bool isTxt, const std::string& ne
 	if (root->perpendicularBinding) bindings = root->bindContourToBranches(grouped);
 	else bindings = root->bindInterpolatedContourToBranches(grouped);
 	bindings = root->addContourPoints(bindings);
-
+	/*
 	// petiole
 	DivideBranchResult result2 = root->divideSingleBranch(root, root->children[0], false, root->mainAxisDivision1, 1);
 	if (result2.divided) {
@@ -173,6 +174,7 @@ void Simulation::init(const std::string& path, bool isTxt, const std::string& ne
 		root->rebindContourWithBrokenBranch(root, result5.petiole, result5.results, index, bindings);
 		resetBool(root);
 	}
+	*/
 }
 
 void Simulation::clearGeometry() {
@@ -199,12 +201,13 @@ void Simulation::updateSimulation()
 	accumulateBranchingStructure(root, branchingStructure);
 
 	bindings = root->addContourPoints(bindings);
-	//bindings = root->addContourPointsLargeBinding(bindings);
 }
 
 void Simulation::animateRebuild() {
-	root->animationPerFrameBinding(bindings);
-	root->calculateNormalDirection(bindings);
+	// animating the contour 
+	if (root->tipToTipBlending == 4) root->animationPerFrameMaxAndTipBlending(bindings);
+	else root->animationPerFrameBinding(bindings);
+	root->calculateNormalDirection(bindings); // -> not used
 }
 
 void Simulation::rebuildBranchGeometry() {
@@ -252,6 +255,7 @@ void Simulation::rebuildDebugGeometry()
 	}
 }
 
+// for non-linear optimization -> simulates the g key
 void Simulation::simulateGrowth(float dt)
 {
 	root->animate(dt);
@@ -263,6 +267,7 @@ void Simulation::simulateGrowth(float dt)
 	);
 }
 
+// for non-linear optimization -> simulates the s key
 void Simulation::simulateSubdivision()
 {
 	DivideBranchResult result = root->divideBranch(root, false);
@@ -277,6 +282,7 @@ void Simulation::simulateSubdivision()
 	}
 }
 
+// subdivide the branching structure (subdivide and rebind the contour)
 void Simulation::handleSKey()
 {
 	int state;
@@ -305,6 +311,7 @@ void Simulation::handleSKey()
 	}
 }
 
+//// same as above, but one subdivision per press
 //void Simulation::handleSKey()
 //{
 //	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_S);
@@ -353,6 +360,7 @@ void Simulation::releaseSkey(int state) {
 	}
 }
 
+//// same as below, but only once per press
 //void Simulation::handleGKey(float dt)
 //{
 //	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_G);
@@ -371,6 +379,7 @@ void Simulation::releaseSkey(int state) {
 //	}
 //}
 
+// animate the branching structure using growth rates
 void Simulation::handleGKey()
 {
 	int state = glfwGetKey(glfwGetCurrentContext(), GLFW_KEY_G);
@@ -399,6 +408,7 @@ void Simulation::releaseGKey(int state) {
 		g_pressed = false;
 }
 
+// right-click on the contour point, and get information about its blending
 void Simulation::handleGetContourInformation(const glm::vec3& worldPos, bool mouseClicked) {
 	if (mouseClicked) {
 		ContourBinding* c = nullptr;
@@ -418,15 +428,18 @@ void Simulation::handleGetContourInformation(const glm::vec3& worldPos, bool mou
 			std::cout << "t: " << c->t << std::endl;
 			std::cout << "blend turned on?: " << c->blend << std::endl;
 			std::cout << "branching node marker?: " << c->branchingNodeMarker << std::endl;
-			std::cout << "blend begin: " << c->blendRegionBegining << std::endl;
-			std::cout << "blend end: " << c->blendRegionEnd << std::endl;
+			std::cout << "blend begin: " << c->blendRegionBeginingTip << std::endl;
+			std::cout << "blend end: " << c->blendRegionEndTip << std::endl;
 			std::cout << "parent node: " << glm::vec3(c->parentNode->globalTransformation[3]) << std::endl;
 			std::cout << "child node: " << glm::vec3(c->childNode->globalTransformation[3]) << std::endl;
 			printMat4((c->blending) * c->childNode->marginTransformation + (1 - (c->blending)) * c->parentNode->marginTransformation * glm::toMat4(c->childNode->localRotation));
+			c->parentNode->printRates(c->parentNode);
+			c->childNode->printRates(c->childNode);
 		}
 	}
 }
 
+// left-click on the node in branching structure, remove that node -> not used
 void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseClicked)
 {
 	if (!mouseClicked) return; // or remove this flag entirely if moved outside
@@ -493,14 +506,13 @@ void Simulation::handleRemoveBranchClick(const glm::vec3& worldPos, bool mouseCl
 	}
 } 
 
-// do not use this anymore
+// left-click on a contour point, add a new branch in that position
 void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClicked)
 {
 	if (mouseClicked) {
 		ContourBinding* c = nullptr;
 		for (int i = 0; i < bindings.size(); i++) {
 			if ((abs(worldPos.x - bindings[i].contourPoint.x) <= 1e-03) && (abs(worldPos.y - bindings[i].contourPoint.y) <= 1e-03)) {
-				//std::cout << i << std::endl;
 				c = &bindings[i];
 				break;
 			}
@@ -514,47 +526,30 @@ void Simulation::handleAddBranchClick(const glm::vec3& worldPos, bool mouseClick
 	}
 }
 
+// all the inside logic in adding a new branch
+// can add a terminal leaflet (make sure to adjust the tip offset in generateInitialContour function)
+// or add regular secondary vein with or without petiole
 void Simulation::processBranchAddition(ContourBinding* c) {
-	ContourBinding pointToBreak;
-	if (root->perpendicularBranch)
-		pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
-	else
-		pointToBreak = root->findBestBinding(root, c->contourPoint);
-
-	DivideBranchResult result = root->splitAtBinding(&pointToBreak);
-	if (result.divided) {
+	// terminal leaflet
+	if (!addTipOnce) {
+		// add new branch
+		SceneNode* newNode = root->addNewBranch(root, c, maxID);
 		pairs.clear();
 		root->labelBranches(root, pairs, index);
 		newPairs.clear();
 		index = 0;
 		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-		root->rebindContourWithBrokenBranch(root, result.petiole, result.results, index, bindings);
-	}
-
-	// add new branch
-	SceneNode* newNode = root->addNewBranch(root, c, maxID);
-	pairs.clear();
-	root->labelBranches(root, pairs, index);
-	newPairs.clear();
-	index = 0;
-	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-	root->rebindToNewBranch(newNode, root, c, bindings);
-	root->addContourOverride(bindings, newNode);
-	maxID = root->getMaxID(root);
-
-	// reorganize children (leftmost to rightmost)
-	index = 0;
-	pairs.clear();
-	root->labelBranches(root, pairs, index);
-	std::vector<ContourBinding*> entire;
-	for (int i = 0; i < bindings.size(); i++) {
-		entire.push_back(&bindings[i]);
-	}
-	root->calculateRebindingGlobal(entire);
-
-	// petiole
-	if (root->petiole) {
-		DivideBranchResult result2 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision1, 1);
+		index = 0;
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		std::vector<ContourBinding*> entire;
+		for (int i = 0; i < bindings.size(); i++) {
+			entire.push_back(&bindings[i]);
+		}
+		root->addContourPointTerminalLeaflet(bindings, newNode->parent);
+		root->calculateRebindingGlobal(entire);
+		maxID = root->getMaxID(root);
+		DivideBranchResult result2 = root->divideSingleBranch(newNode->parent, newNode, false, root->mainAxisDivision1, 5);
 		if (result2.divided) {
 			pairs.clear();
 			root->labelBranches(root, pairs, index);
@@ -564,40 +559,142 @@ void Simulation::processBranchAddition(ContourBinding* c) {
 			root->rebindContourWithBrokenBranch(root, result2.petiole, result2.results, index, bindings);
 			resetBool(root);
 		}
-		DivideBranchResult result3 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision2, 2);
-		if (result3.divided) {
-			pairs.clear();
-			root->labelBranches(root, pairs, index);
-			newPairs.clear();
-			index = 0;
-			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			root->rebindContourWithBrokenBranch(root, result3.petiole, result3.results, index, bindings);
-			resetBool(root);
-		}
-		DivideBranchResult result4 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision3, 3);
-		if (result4.divided) {
-			pairs.clear();
-			root->labelBranches(root, pairs, index);
-			newPairs.clear();
-			index = 0;
-			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-			root->rebindContourWithBrokenBranch(root, result4.petiole, result4.results, index, bindings);
-			resetBool(root);
-		}
+		//DivideBranchResult result3 = root->divideSingleBranch(newNode->parent, newNode, false, root->mainAxisDivision3, 5);
+		//if (result3.divided) {
+		//	pairs.clear();
+		//	root->labelBranches(root, pairs, index);
+		//	newPairs.clear();
+		//	index = 0;
+		//	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		//	root->rebindContourWithBrokenBranch(root, result3.petiole, result3.results, index, bindings);
+		//	resetBool(root);
+		//}
 	}
-	if (root->blend) root->indentationControl(bindings);
+	else {
+		ContourBinding pointToBreak;
+		if (root->perpendicularBranch)
+			pointToBreak = root->findBestBindingPerpendicular(root, c->contourPoint);
+		else
+			pointToBreak = root->findBestBinding(root, c->contourPoint);
+
+		DivideBranchResult result = root->splitAtBinding(&pointToBreak);
+		if (result.divided) {
+			pairs.clear();
+			root->labelBranches(root, pairs, index);
+			newPairs.clear();
+			index = 0;
+			root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+			root->rebindContourWithBrokenBranch(root, result.petiole, result.results, index, bindings);
+		}
+
+		// add new branch
+		SceneNode* newNode = root->addNewBranch(root, c, maxID);
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		newPairs.clear();
+		index = 0;
+		root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+		root->rebindToNewBranch(newNode, root, c, bindings);
+		root->addContourOverride(bindings, newNode);
+		maxID = root->getMaxID(root);
+
+		// reorganize children (leftmost to rightmost)
+		index = 0;
+		pairs.clear();
+		root->labelBranches(root, pairs, index);
+		std::vector<ContourBinding*> entire;
+		for (int i = 0; i < bindings.size(); i++) {
+			entire.push_back(&bindings[i]);
+		}
+		root->calculateRebindingGlobal(entire);
+		/*
+		// petiole
+		if (root->petiole) {
+			DivideBranchResult result2 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision1, 1);
+			if (result2.divided) {
+				pairs.clear();
+				root->labelBranches(root, pairs, index);
+				newPairs.clear();
+				index = 0;
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+				root->rebindContourWithBrokenBranch(root, result2.petiole, result2.results, index, bindings);
+				resetBool(root);
+			}
+			DivideBranchResult result3 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision2, 2);
+			if (result3.divided) {
+				pairs.clear();
+				root->labelBranches(root, pairs, index);
+				newPairs.clear();
+				index = 0;
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+				root->rebindContourWithBrokenBranch(root, result3.petiole, result3.results, index, bindings);
+				resetBool(root);
+			}
+			DivideBranchResult result4 = root->divideSingleBranch(newNode->parent, newNode, false, root->newBranchDivision3, 3);
+			if (result4.divided) {
+				pairs.clear();
+				root->labelBranches(root, pairs, index);
+				newPairs.clear();
+				index = 0;
+				root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+				root->rebindContourWithBrokenBranch(root, result4.petiole, result4.results, index, bindings);
+				resetBool(root);
+			}
+		}
+		*/
+	}
+	// blending
+	if (root->blend && root->tipToTipBlending != 4) root->indentationControl(bindings, root->tipToTipBlending);
+	else if (root->blend && root->tipToTipBlending == 4) root->indentationControlMaxAndTipBlending(bindings);
 	resetBool(root);
 
+	// update transformation to reflect the new branching structure
 	root->animate(0);
 	root->updateBranch(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
-	if (root->blend) root->animationPerFrameBinding(bindings);
+	if (root->blend && root->tipToTipBlending != 4) root->animationPerFrameBinding(bindings);
+	else if (root->blend && root->tipToTipBlending == 4) root->animationPerFrameMaxAndTipBlending(bindings);
 	else root->animationPerFrame(bindings, 0);
 }
 
+// find contour point bound to the leaf of the main axis (for terminal leaflet)
+ContourBinding* findTipBinding(std::vector<ContourBinding*>& bindings) {
+	for (ContourBinding* b : bindings) {
+		if (std::abs(b->contourPoint.x) == 0.f) {
+			return b;
+		}
+	}
+	return nullptr;
+}
+
+// find the leaf node in the main axis (for terminal leaflet)
+SceneNode* findLeaf(SceneNode* node) {
+	if (node->children.empty()) {
+		node->addBranch = true;
+		return node;
+	}
+
+	return findLeaf(node->children.front());
+}
+
 void Simulation::dynamicallyAddBranch() {
+	// for terminal leaflet
+	//std::vector<ContourBinding*> entire;
+	//for (int i = 0; i < bindings.size(); i++) {
+	//	entire.push_back(&bindings[i]);
+	//}
+	//ContourBinding* tip = findTipBinding(entire);
+	//SceneNode* leaf = findLeaf(root);
+	//if (tip != nullptr && glm::length(tip->contourPoint - glm::vec3(leaf->globalTransformation[3])) > 0.005f && !addTipOnce) { // add a condition that tip is far enough from the branch tip (leaf)
+	//	tipBranchAdded = true;
+	//	tip->terminalLeaflet = true;
+	//	glm::vec3 tipPoint = tip->contourPoint;
+	//	processBranchAddition(tip);
+	//	addTipOnce = true;
+	//}
+
+	// regular secondary vein
 	ContourBinding* c = root->findBranchAdditionPoints(root, bindings, root->newBranchDistance, root->newBranchExclusion);
 	if (c == nullptr) {
-		//std::cout << "contour point not clicked" << std::endl;
 		return;
 	}
 	glm::vec3 originalPoint = c->contourPoint;
@@ -612,7 +709,7 @@ void Simulation::dynamicallyAddBranch() {
 	}
 }
 
-// global rebinding
+// global rebinding by pressing A key
 void Simulation::handleAKey()
 {
 	int state;
@@ -631,11 +728,13 @@ void Simulation::handleAKey()
 		}
 		root->reorganizeChildrenLeft(root);
 		root->calculateRebindingGlobal(entire);
-		if (root->blend) root->indentationControl(bindings);
+		if (root->blend && root->tipToTipBlending != 4) root->indentationControl(bindings, root->tipToTipBlending);
+		else if (root->blend && root->tipToTipBlending == 4) root->indentationControlMaxAndTipBlending(bindings);
 		resetBool(root);
 	}
 }
 
+// for non-linear optimization -> organizes all the functions in order for a single simulation
 void Simulation::stepHeadless(float length)
 {
 	if (!subdivisionDone) {
@@ -649,6 +748,7 @@ void Simulation::stepHeadless(float length)
 	rebuildDebugGeometry();
 }
 
+// visualization
 void Simulation::setVisualization() {
 	updateMarkerKeys(bindings, 10, contourMarkerKeys);
 }

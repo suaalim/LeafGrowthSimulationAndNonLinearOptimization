@@ -96,6 +96,18 @@ bool SimulationConfig::load(const std::string& filename)
 		perpendicularBinding =
 			static_cast<int>(tbl["perpendicular_binding"].value_or(0));
 
+		growthReductionThreshold =
+			static_cast<float>(tbl["growth_reduction_threshold"].value_or(0.0));
+
+		growthReductionStep =
+			static_cast<float>(tbl["growth_reduction_step"].value_or(0.0));
+
+		growthReductionFactor =
+			static_cast<float>(tbl["growth_reduction_factor"].value_or(0.0));
+
+		tipToTipBlending =
+			static_cast<int>(tbl["tip_to_tip_blending"].value_or(0));
+
 		return true;
 	}
 	catch (const toml::parse_error& err)

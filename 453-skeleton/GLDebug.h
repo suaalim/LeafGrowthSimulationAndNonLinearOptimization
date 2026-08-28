@@ -62,6 +62,10 @@ public:
 	int getPetiole() const { return petiole; }
 	int getSymmetricBranch() const { return symmetricBranch; }
 	int getPerpendicularBinding() const { return perpendicularBinding; }
+	float getGrowthReductionThreshold() const { return growthReductionThreshold; }
+	float getGrowthReductionFactor() const { return growthReductionFactor; }
+	float getGrowthReductionStep() const { return growthReductionStep; }
+	int getTipToTipBlending() const { return tipToTipBlending; }
 
 private:
 	SimulationConfig() = default;
@@ -85,6 +89,10 @@ private:
 	int petiole = 0; // 0 for false, 1 for true
 	int symmetricBranch = 0; // 0 for false, 1 for true
 	int perpendicularBinding = 0; // 0 for false, 1 for true
+	float growthReductionThreshold = 0.f;
+	float growthReductionStep = 0.f;
+	float growthReductionFactor = 0.f;
+	int tipToTipBlending = 0; // 0 for false, 1 for true
 };
 
 class PetioleConfig
